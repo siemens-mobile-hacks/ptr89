@@ -1,0 +1,123 @@
+#pragma once
+
+#include <cstddef>
+#include <memory>
+#include <map>
+#include <tuple>
+#include <cstdint>
+#include <string>
+#include <cstdio>
+#include <vector>
+#include <cstring>
+
+namespace Ptr89 {
+
+enum PatternType {
+	PATTERN_TYPE_OFFSET,		// AB ?? CD ??, return offset of the finded bytes
+	PATTERN_TYPE_POINTER,		// *(AB ?? CD ??), use bytes as pointer
+	PATTERN_TYPE_REFERENCE,		// &(AB ?? CD ??), decode LDR
+};
+
+enum SubPatternType {
+	SUB_PATTERN_TYPE_BRANCH_4B,		// _blf(AB ?? CD ??) or { AB ?? CD ?? }
+	SUB_PATTERN_TYPE_BRANCH_2B,		// [ AB ?? CD ?? ]
+	SUB_PATTERN_TYPE_STRING,		// %string%
+};
+
+struct PtrExp;
+
+struct PtrExpPart {
+	SubPatternType type;
+	std::vector<uint16_t> bytes;		// for SUB_PATTERN_TYPE_BYTES or SUB_PATTERN_TYPE_STRING
+	std::shared_ptr<PtrExp> pattern;	// for SUB_PATTERN_TYPE_BRANCH_4B or SUB_PATTERN_TYPE_BRANCH_2B
+};
+
+struct SubPtrExp {
+	SubPatternType type;
+	std::shared_ptr<PtrExp> pattern;
+	int offset;
+	int size;
+};
+
+struct PtrExp {
+	PatternType type = PATTERN_TYPE_OFFSET;
+	std::string source;
+	int inputOffset = 0; // &( AB ?? CD ?? + 1 )
+	int outputOffset = 0; // &( AB ?? CD ?? ) + 1 or AB ?? AB ?? + 1
+	std::vector<uint8_t> masks;
+	std::vector<uint8_t> bytes;
+	std::map<int, SubPtrExp> subPatterns;
+	std::string error;
+};
+
+class Parser;
+
+class PatternError: public std::runtime_error {
+	public:
+		PatternError(const Parser *parser, const std::string &msg);
+	private:
+		std::string getErrorMsg(const Parser *parser, const std::string &msg);
+};
+
+class Pattern {
+	public:
+		typedef typeof(vprintf) * DebugHandlerFunc;
+
+		struct Memory {
+			uint32_t base;
+			uint8_t *data;
+			size_t size;
+		};
+
+		struct SearchResult {
+			uint32_t address;
+			uint32_t offset;
+			uint32_t value;
+		};
+
+		static std::shared_ptr<PtrExp> parse(const std::string &pattern);
+		static std::string stringify(const std::shared_ptr<PtrExp> &pattern);
+		static std::vector<SearchResult> find(const std::shared_ptr<PtrExp> &pattern, const Memory &memory, int maxResults = 0);
+		static bool checkPattern(const std::shared_ptr<PtrExp> &pattern, size_t offset, const Memory &memory);
+		static std::pair<bool, uint32_t> decodeThumbBL(uint32_t offset, const uint8_t *bytes);
+		static std::pair<bool, uint32_t> decodeArmBL(uint32_t offset, const uint8_t *bytes);
+		static std::pair<bool, uint32_t> decodeThumbB(uint32_t offset, const uint8_t *bytes);
+		static std::pair<bool, uint32_t> decodeThumbLDR(uint32_t offset, const uint8_t *bytes);
+		static std::pair<bool, uint32_t> decodeArmLDR(uint32_t offset, const uint8_t *bytes);
+		static std::pair<bool, uint32_t> decodeReference(uint32_t offset, const Memory &memory);
+		static std::pair<bool, uint32_t> decodePointer(uint32_t offset, const Memory &memory);
+
+		static void setDebugHandler(DebugHandlerFunc debugHandler) {
+			m_debugHandler = debugHandler;
+		}
+
+		static void debugSectionBegin() {
+			m_debugLevel++;
+		}
+
+		static void debugSectionEnd() {
+			m_debugLevel--;
+		}
+
+		static void debug(const char *format, ...)  __attribute__((format(printf, 1, 2)));
+		static void _debug(const char *format, ...)  __attribute__((format(printf, 1, 2)));
+	private:
+		static DebugHandlerFunc m_debugHandler;
+		static int m_debugLevel;
+		static bool checkSubpatterns(const std::shared_ptr<PtrExp> &pattern, size_t offset, const Memory &memory);
+		static bool fuzzyMatch(const uint8_t *bytes, const uint8_t *masks, int patternSize, const uint8_t *memory);
+		static std::pair<bool, Pattern::SearchResult> decodeResult(const std::shared_ptr<PtrExp> &pattern, uint32_t offset, const Memory &memory);
+
+		static inline uint32_t signExtend(uint32_t value, int from, int to) {
+			if ((value & (1 << (from - 1))) != 0) {
+				uint32_t mask = 0;
+				for (int i = from; i < to; i++)
+					mask |= 1 << i;
+				return mask | value;
+			} else {
+				return value;
+			}
+		}
+};
+
+}; // namespace Ptr89
