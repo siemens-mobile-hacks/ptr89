@@ -18,7 +18,7 @@ std::pair<int, int> getLocByOffset(const std::string &text, int offset) {
 			return { line, col };
 		col++;
 	}
-	return { line, 1 };
+	return { line, col };
 }
 
 std::string codeFrame(const std::string &text, int lineNum, int colNum) {

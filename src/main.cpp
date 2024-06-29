@@ -1,83 +1,139 @@
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <string>
 #include <cassert>
+#include <filesystem>
 #include <ptr89.h>
-/*
+#include <argparse/argparse.hpp>
+#include <nlohmann/json.hpp>
 
-# HEX
-ABCD
-
-# HEX MASK
-AB??
-A?C?
-
-# Binary MASK
-[1111.11.]
-
-# Reference
-&( ... )
-
-# Pointer
-*( ... )
-
-# Sub-pattern: BL
-{ }
-_BLF( )
-
-# Sub-pattern: B
-[ ]
-
-# Force value
-< A0000000 >
-
-# String (decode LDR and check string by addr)
-%ascii%
-
-*/
-
+using json = nlohmann::json;
 using namespace Ptr89;
 
-int main() {
-	Pattern::setDebugHandler(vprintf);
+std::pair<uint8_t *, size_t> readBinaryFile(const std::string &path);
+int64_t getCurrentTimestamp();
 
-		// parser.parse("&(??4840687047,??4800687047,??B5 + 1) - 4");
-		// auto pattern = parser.parse("??,1C,??,48,??,B5,??,68, {??,1C,??,68,??,68,??,2B,??,D0,??,68, [??,23, [??B5??1C??6E] ] ,??,47} ,??,BD + 1");
-///		auto pattern = parser.parse("??,1C,??,48,??,B5,??,68, { ??,1C,??,68,??,68,??,2B,??,D0,??,68, [??,23, [??B5??1C??6E] ] ,??,47 },??,BD + 1");
+int main(int argc, char *argv[]) {
+	argparse::ArgumentParser program("ptr89");
+	program.add_argument("-f", "--file")
+		.help("fullflash dump file")
+		.required()
+		.nargs(1);
+	program.add_argument("-b", "--base")
+		.help("fullflash base address (HEX)")
+		.default_value("A0000000")
+		.nargs(1);
+	program.add_argument("-p", "--pattern")
+		.help("pattern to search")
+		.append()
+		.default_value("");
+	program.add_argument("-V", "--verbose")
+		.help("enable debug information output")
+		.default_value(false)
+		.implicit_value(true)
+		.nargs(0);
+	program.add_argument("-J", "--json")
+		.help("JSON output")
+		.default_value(false)
+		.implicit_value(true)
+		.nargs(0);
 
-//		auto pattern = parser.parse("&(??4840687047,??4800687047,??B5 + 1) - 4"); // THUMB LDR+LDR
-
-//		auto pattern = parser.parse("&(70402DE9??669FE50050A0E10140A0E1+4)"); // ARM
-
-//		auto pattern = parser.parse("&( 98 02 9f e5 00 00 90 e5 08 80 bd e8 )"); // ARM
-
-//		auto pattern = parser.parse("&(04D000220021??48 + 6)"); // THUMB LDR
-
-//		auto pattern = parser.parse("&(??,48,??,B5,??,68, {??,63,??,47}, ??,BD + 1)"); // THUMB LDR
-		auto pattern = Pattern::parse("*(010080E2020051E15C008415AC008405????????0400A0E11040BDE8+20)"); // THUMB LDR
-
-
-		//auto pattern = parser.parse("70 40 [0010....] e9 [0000....] [....0000] a0 e1 [0000....] [....0000] a0 e1 [........] [........] [0100....] e2 [........] [........] [1000....] e2 [........] [........] a0 e3 [........] [........] a0 e3 [........] [........] [........] eb [........] [0000....] [0101....] e3 [........] [........] [........] 0a [........] [........] a0 e3 [........] [........] [1000....] e2 [........] [........] [........] [1111101.] [0000....] [....0000] a0 e1 [........] [........] [1000....] e2 [........] [........] a0 e3 [........] [........] [........] [1111101.] [........] [0000....] [0101....] e3 [........] [0000....] [0101....] 13 [........] [........] [........] 0a [0000....] [....0000] [0100....] e0 [........] [0000....] [0101....] e3 [........] [........] [........] ba [........] [........] a0 e3 [........] [........] [1100....] e5 [........] [........] [1000....] e2 [0000....] [....0000] a0 e1 [........] [........] [........] [1111101.] [.000....] [........] a0 e1 [.010....] [........] a0 e1 [........] [........] [1000....] e2 ");
-
-		//auto pattern = parser.parse("{ AA } [........] [........] [1001....] e5 [........] [0000....] [0101....] e3 [........] [0000....] [0101....] 13 [........] [........] [1001....] 15 [........] [0000....] [0101....] 13 [........] [........] [1001....] 15 [........] [0000....] [0101....] 13 [........] [0000....] [0101....] 13 [........] [0000....] [0101....] 13 [........] [0000....] [0101....] 13 [........] [0000....] [0101....] 13 [........] [0000....] [0101....] 13 [........] [........] e0 03 [........] [........] [........] 0a e0 0d [1000....] e8 [........] [........] [1000....] e2 0f 00 [1001....] e8 [........] [........] [........] eb [0000....] [....0000] a0 e1 ");
-
-//		auto [memory, memorySize] = readBinaryFile("/home/azq2/dev/sie/elfloader3/ff/EL71sw45.bin");
-
-	//	Pattern::Memory memoryRegion = { 0xA0000000, memory, memorySize };
-	//	Pattern::find(pattern, memoryRegion);
-
-		printf("parsed pattern: '%s'\n", Pattern::stringify(pattern).c_str());
-
-	/*
-	while (true) {
-		auto token = m_tok.next();
-
-		printf("TOK_%d %.*s\n", token.type, token.end - token.start, &input[token.start]);
-
-		if (token.type == Tokenizer::TOK_INVALID || token.type == Tokenizer::TOK_EOF)
-			break;
+	try {
+		program.parse_args(argc, argv);
+	} catch (const std::exception &err) {
+		std::cerr << err.what() << std::endl;
+		std::cerr << program;
+		return 1;
 	}
-	*/
+
+	if (program.get<bool>("--verbose"))
+		Pattern::setDebugHandler(vprintf);
+
+	auto [memory, memorySize] = readBinaryFile(program.get<std::string>("--file"));
+	Pattern::Memory memoryRegion = { 0xA0000000, memory, memorySize };
+
+	auto asJSON = program.get<bool>("--json");
+
+	auto patterns = program.get<std::vector<std::string>>("--pattern");
+	if (patterns.size() > 0) {
+		json j;
+		j["patterns"] = json::array();
+
+		auto start = duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+		for (auto &patternStr: patterns) {
+			auto pattern = Pattern::parse(patternStr);
+			auto results = Pattern::find(pattern, memoryRegion);
+			if (asJSON) {
+				json row;
+				row["pattern"] = patternStr;
+				row["results"] = json::array();
+				for (auto &result: results) {
+					json item;
+					item["address"] = result.address;
+					item["offset"] = result.offset;
+					item["value"] = result.value;
+
+					if (pattern->type == PATTERN_TYPE_OFFSET) {
+						item["type"] = "offset";
+					} else if (pattern->type == PATTERN_TYPE_POINTER) {
+						item["type"] = "pointer";
+					} else if (pattern->type == Ptr89::PATTERN_TYPE_REFERENCE) {
+						item["type"] = "reference";
+					}
+
+					row["results"].push_back(item);
+				}
+				j["patterns"].push_back(row);
+			} else {
+				printf("Pattern: '%s'\n", patternStr.c_str());
+				printf("Found %ld matches:\n", results.size());
+				for (auto &result: results) {
+					if (pattern->type == PATTERN_TYPE_OFFSET) {
+						printf("  %08X\n", result.address);
+					} else if (pattern->type == PATTERN_TYPE_POINTER) {
+						printf("  %08X: %08X\n", result.address, result.value);
+					} else if (pattern->type == Ptr89::PATTERN_TYPE_REFERENCE) {
+						printf("  %08X: %08X\n", result.address, result.value);
+					}
+				}
+				printf("\n");
+			}
+		}
+		auto end = duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+		if (asJSON) {
+			j["elapsed"] = end - start;
+			printf("%s\n", j.dump(2).c_str());
+		} else {
+			printf("Search done in %ld ms\n", end - start);
+		}
+	}
+
+	delete[] memory;
 
 	return 0;
+}
+
+std::pair<uint8_t *, size_t> readBinaryFile(const std::string &path) {
+	FILE *fp = fopen(path.c_str(), "r");
+	if (!fp) {
+		throw std::runtime_error("fopen(" + path + ") error: " + strerror(errno));
+	}
+
+	size_t max_file_size = std::filesystem::file_size(path);
+	uint8_t *bytes = new uint8_t[max_file_size];
+
+	char buff[4096];
+	size_t readed = 0;
+	while (!feof(fp) && readed < max_file_size) {
+		int ret = fread(bytes + readed, 1, std::min(4096LU, max_file_size - readed), fp);
+		if (ret > 0) {
+			readed += ret;
+		} else if (ret < 0) {
+			throw std::runtime_error("fread(" + path + ") error: " + strerror(errno));
+		}
+	}
+	fclose(fp);
+
+	return { bytes, readed };
 }
