@@ -3,7 +3,7 @@
 There is yet another ARM/THUMB pattern finder.
 
 Main features:
-- Compatible with Smelter patterns syntax.
+- Compatible with [Smelter](https://web.archive.org/web/20090414122112/http://avkiev.kiev.ua/Siemens/Smelter/Smelter.htm) patterns syntax.
 - Compatible with Ghidra SRE patterns syntax.
 - Enhanced patterns syntax:
 	- Nested patterns for LDR.
