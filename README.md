@@ -175,22 +175,51 @@ For example:
 
 Steps:
 1. Pattern `?? 1C ?? 48 ?? B5 ?? 68    ?? ?? ?? ??    BD + 0x1` was found at 0xA0978822
-2. Emulating BL at 0xA097882A (+8)
+    ```asm
+    A0978822: 01 1C           ADD        R1,R0,#0x0
+	A0978824: 62 48           LDR        R0,[DAT_A09789B0]
+	A0978826: 80 B5           PUSH       {R7,LR}
+	A0978828: 00 68           LDR        R0,[R0,#0x0]=>DAT_A8DBE3F0
+	A097882A: 9E F0 F6 FD     BL         FUN_A0A1741A ; <--- see this
+	A097882E: 80 BD           POP        {R7,PC}
+	```
+3. Emulating BL at 0xA097882A (+8)
 	```asm
 	A097882A: 9E F0 F6 FD ; BL #0xA0A1741A
 	```
-3. Checking pattern `?? 1C ?? 68 ?? 68 ?? 2B ?? D0 ?? 68     ?? ??     47` at 0xA0A1741A
-4. Emulating BL at 0xA0A17426 (+12)
+4. Checking pattern `?? 1C ?? 68 ?? 68 ?? 2B ?? D0 ?? 68     ?? ??     47` at 0xA0A1741A
+	```asm
+	A0A1741A: 0A 1C           ADD        R2,R1,#0x0
+	A0A1741C: 01 68           LDR        R1,[R0,#0x0]
+	A0A1741E: 8B 68           LDR        R3,[R1,#0x8]
+	A0A17420: 00 2B           CMP        R3,#0x0
+	A0A17422: 01 D0           BEQ        LAB_A0A17428
+	A0A17424: C9 68           LDR        R1,[R1,#0xC]
+	A0A17426: F6 E7           B          FUN_A0A17416 ; <--- see this
+	A0A17428: 70 47           BX         LR
+	```
+6. Emulating BL at 0xA0A17426 (+12)
 	```asm
 	A0A17426: F6 E7 ; B #0xA0A17416
 	```
-5. Checking pattern `?? 23    ?? ??` at 0xA0A1741A
-6. Emulating BL at 0xA0A17418 (+2)
+7. Checking pattern `?? 23    ?? ??` at 0xA0A17416
+	```asm
+	A0A17416: 01 23           MOV        R3,#0x1
+	A0A17418: D7 E7           B          LAB_A0A173CA ; <--- see this
+	```
+9. Emulating BL at 0xA0A17418 (+2)
 	```asm
 	A0A17418: D7 E7 ; B #0xA0A173CA
 	```
-7. Checking pattern `?? B5 ?? 1C ?? 6E` at 0xA0A173CA
-8. Pattern result is `0xA0978822 + 0x1 = 0xA0978823`
+10. Checking pattern `?? B5 ?? 1C ?? 6E` at 0xA0A173CA
+	```asm
+	A0A173CA: F8 B5           PUSH       {R3,R4,R5,R6,R7,LR}
+	A0A173CC: 04 1C           ADD        R4,R0,#0x0
+	A0A173CE: 80 6E           LDR        R0,[R0,#0x68]
+	A0A173D0: 0D 1C           ADD        R5,R1,#0x0
+	A0A173D2: 16 1C           ADD        R6,R2,#0x0
+	```
+11. Pattern result is `0xA0978822 + 0x1 = 0xA0978823`
 
 ### Nested patterns for references
 Follow the reference and checking it for a pattern.
@@ -212,21 +241,24 @@ LDR Rd, [PC, #offset]
 
 For example:
 ```bash
-00 [00101...] ?? D1 LDR [ 7F 16 65 62 73 64 E3 ] ?? [0001110.] ?? [00100...] ?? [111100..] ?? [11.0....] ?? [00101...] ?? D0 02 DF ?? [0001110.] ?? [0001110.] ?? [00100...] 01 20 ?? [111100..] ?? [11.0....] ?? [11100...] 03 DF ?? [0001110.] ?? [0001110.] ?? [00100...] 01 20 ?? [111100..] ?? [11.0....]
+LDR{ 436f70797269676874204d47432032303034 } 1e ff 2f e1
 ```
 
 Steps:
-1. Pattern `00 [00101...] ?? D1     ?? ??      ?? [0001110.] ?? [00100...] ?? [111100..] ?? [11.0....] ?? [00101...] ?? D0 02 DF ?? [0001110.] ?? [0001110.] ?? [00100...] 01 20 ?? [111100..] ?? [11.0....] ?? [11100...] 03 DF ?? [0001110.] ?? [0001110.] ?? [00100...] 01 20 ?? [111100..] ?? [11.0....]` was found at 0xA0A63270
-3. Emulating LDR at 0xA0A63274 (+4)
+1. Pattern `?? ?? ?? ??    1e ff 2f e1` was found at 0xA00A0B1C
+3. Emulating LDR at 0xA00A0B1C (+0)
    ```asm
-   A0A63274: 6F 4C ; LDR R4, [PC, #0x1BC]
-   ; Emulation: PC + 0x1BC = 0xA0A63434
+   A00A0B1C: 00 00 9F E5  LDR R0, [PC, #+0x0] ; 0xA00A0B24
+   ; Emulation: PC + 0x0 = 0xA00A0B24
    ```
-4. Decoding pointer at 0xA0A63434
+4. Decoding pointer at 0xA00A0B24
 	```asm
-	A0A63434: D6 99 C6 A0 ; 0xA0C699D6
+	A00A0B24: 1D 34 0A A0 ; 0xA00A341D
 	```
-5. Checking pattern `7F 16 65 62 73 64 E3` at 0xA0C699D6
+5. Checking pattern `436f70797269676874204d47432032303034` at 0xA00A341D
+	```asm
+ 	A00A341D: ds "Copyright MGC 2004 - Nucleus PLUS - Integrator RVCT v. 1.15"
+ 	```
 6. Result is: `0xA0A63270`
 
 ### Stub value
