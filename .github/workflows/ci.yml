@@ -1,0 +1,34 @@
+name: Build
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+
+      - name: Installing dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install cmake mingw-w64 mingw-w64-tools mingw-w64-i686-dev mingw-w64-x86-64-dev mingw-w64-common fakeroot build-essential
+
+      - name: Building emulator
+        run: |
+          tools/build_deb.sh
+          tools/build_win.sh
+
+      - uses: softprops/action-gh-release@v1
+        with:
+          token: "${{ secrets.GITHUB_TOKEN }}"
+          prerelease: true
+          files:
+			- ../*.deb
+			- build-win/ptr89.exe

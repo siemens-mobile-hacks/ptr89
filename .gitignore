@@ -1,4 +1,5 @@
 build
+build-win
 .cache
 *.vkp
 *.ini
