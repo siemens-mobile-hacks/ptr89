@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v3
         with:
@@ -20,7 +20,7 @@ jobs:
           sudo apt-get update
           sudo apt-get -y install cmake mingw-w64 mingw-w64-tools mingw-w64-i686-dev mingw-w64-x86-64-dev mingw-w64-common fakeroot build-essential debhelper
 
-      - name: Building emulator
+      - name: Building ptr89
         run: |
           tools/build_deb.sh
           tools/build_win.sh
