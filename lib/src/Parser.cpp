@@ -20,12 +20,17 @@ std::shared_ptr<PtrExp> Parser::parse(const std::string &input) {
 			parseReferenceOrPointer();
 		break;
 
+		case Tokenizer::TOK_VALUE_OPEN:
+			parseStaticValue();
+		break;
+
+		case Tokenizer::TOK_PAREN_OPEN:	// (...)
 		default:
 			parseOffsetPattern();
 		break;
 
 		case Tokenizer::TOK_EOF:
-			throw PatternError(this, "Unexpected EOF");
+			// Empty pattern
 		break;
 
 		case Tokenizer::TOK_INVALID:
@@ -39,6 +44,25 @@ std::shared_ptr<PtrExp> Parser::parse(const std::string &input) {
 		throw PatternError(this, "Unexpected tokens after end of pattern");
 
 	return std::make_shared<PtrExp>(m_pattern);
+}
+
+void Parser::parseStaticValue() {
+	expectToken(Tokenizer::TOK_VALUE_OPEN);
+	m_tok.next();
+
+	skipWhitespaces();
+
+	expectToken(Tokenizer::TOK_HEX);
+
+	m_pattern.type = PATTERN_TYPE_STATIC_VALUE;
+	m_pattern.staticValue = getTokenUInt(m_tok.peek());
+
+	m_tok.next();
+
+	skipWhitespaces();
+
+	expectToken(Tokenizer::TOK_VALUE_CLOSE);
+	m_tok.next();
 }
 
 void Parser::parseReferenceOrPointer() {
@@ -68,8 +92,21 @@ void Parser::parseOffsetPattern() {
 
 void Parser::parsePatternBody() {
 	skipWhitespaces();
-	while (parsePatternData());
-	m_pattern.inputOffset = parseOffset();
+
+	if (m_tok.peek().type == Tokenizer::TOK_PAREN_OPEN) {
+		expectToken(Tokenizer::TOK_PAREN_OPEN);
+		m_tok.next();
+
+		while (parsePatternData());
+
+		expectToken(Tokenizer::TOK_PAREN_CLOSE);
+		m_tok.next();
+
+		m_pattern.inputOffset = parseOffset();
+	} else {
+		while (parsePatternData());
+		m_pattern.inputOffset = parseOffset();
+	}
 }
 
 int Parser::parseOffset() {
@@ -136,7 +173,6 @@ void Parser::parseSubPattern(SubPatternType type, Tokenizer::TokenType openTag, 
 	m_tok.next();
 
 	m_pattern = {};
-	m_pattern.source = m_input;
 	while (parsePatternData());
 
 	PtrExp subPattern = m_pattern;
@@ -168,6 +204,36 @@ void Parser::parseSubPattern(SubPatternType type, Tokenizer::TokenType openTag, 
 	m_tok.next();
 }
 
+void Parser::parseAsciiString() {
+	auto value = getTokenStr(m_tok.peek());
+	if (value.size() <= 2)
+		throw PatternError(this, "Empty string not allowed");
+
+	auto stringValue = value.substr(1, value.size() - 2);
+
+	SubPtrExp subPattern = { };
+	subPattern.type = SUB_PATTERN_TYPE_STRING;
+	subPattern.pattern = std::make_shared<PtrExp>(PtrExp());
+
+	for (int i = 1; i < value.size() - 2; i++) {
+		uint8_t byte = (uint8_t) value[i];
+		subPattern.pattern->bytes.push_back(byte);
+		subPattern.pattern->masks.push_back(0xFF);
+	}
+
+	int offset = m_pattern.bytes.size();
+	subPattern.offset = offset;
+	subPattern.size = 4;
+	m_pattern.subPatterns[offset] = subPattern;
+
+	for (int i = 0; i < 4; i++) {
+		m_pattern.bytes.push_back(0);
+		m_pattern.masks.push_back(0);
+	}
+
+	m_tok.next();
+}
+
 bool Parser::parsePatternData() {
 	switch (m_tok.peek().type) {
 		case Tokenizer::TOK_HEX:
@@ -190,6 +256,10 @@ bool Parser::parsePatternData() {
 		case Tokenizer::TOK_BLF: // _BLF(...)
 			m_tok.next();
 			parseSubPattern(SUB_PATTERN_TYPE_BRANCH_4B, Tokenizer::TOK_PAREN_OPEN, Tokenizer::TOK_PAREN_CLOSE);
+		break;
+
+		case Tokenizer::TOK_ASCII_STRING:
+			parseAsciiString();
 		break;
 
 		case Tokenizer::TOK_SEPARATOR:
@@ -251,6 +321,10 @@ void Parser::skipWhitespaces() {
 
 int Parser::getTokenInt(const Tokenizer::Token &token) {
 	return stoi(getTokenStr(token), nullptr, 16);
+}
+
+uint32_t Parser::getTokenUInt(const Tokenizer::Token &token) {
+	return stol(getTokenStr(token), nullptr, 16);
 }
 
 std::string Parser::getTokenStr(const Tokenizer::Token &token) {

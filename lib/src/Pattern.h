@@ -16,6 +16,7 @@ enum PatternType {
 	PATTERN_TYPE_OFFSET,		// AB ?? CD ??, return offset of the finded bytes
 	PATTERN_TYPE_POINTER,		// *(AB ?? CD ??), use bytes as pointer
 	PATTERN_TYPE_REFERENCE,		// &(AB ?? CD ??), decode LDR
+	PATTERN_TYPE_STATIC_VALUE,	// < FFFFFFFF >
 };
 
 enum SubPatternType {
@@ -41,13 +42,12 @@ struct SubPtrExp {
 
 struct PtrExp {
 	PatternType type = PATTERN_TYPE_OFFSET;
-	std::string source;
 	int inputOffset = 0; // &( AB ?? CD ?? + 1 )
 	int outputOffset = 0; // &( AB ?? CD ?? ) + 1 or AB ?? AB ?? + 1
 	std::vector<uint8_t> masks;
 	std::vector<uint8_t> bytes;
 	std::map<int, SubPtrExp> subPatterns;
-	std::string error;
+	uint32_t staticValue = 0; // for PATTERN_TYPE_STATIC_VALUE
 };
 
 class Parser;

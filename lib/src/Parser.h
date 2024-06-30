@@ -1,8 +1,8 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <vector>
-#include <stack>
 #include "Pattern.h"
 #include "Tokenizer.h"
 
@@ -20,6 +20,8 @@ class Parser {
 		void parseBinMask();
 		bool parsePatternData();
 		void parsePatternBody();
+		void parseStaticValue();
+		void parseAsciiString();
 		int parseOffset();
 		void skipWhitespaces();
 		void expectToken(Tokenizer::TokenType tokenType);
@@ -27,6 +29,7 @@ class Parser {
 
 		Tokenizer::TokenType getClosingToken(Tokenizer::TokenType tokenType);
 		int getTokenInt(const Tokenizer::Token &token);
+		uint32_t getTokenUInt(const Tokenizer::Token &token);
 		std::string getTokenStr(const Tokenizer::Token &token);
 
 		static inline int hex2byte(char c) {

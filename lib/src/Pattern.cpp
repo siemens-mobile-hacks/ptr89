@@ -62,7 +62,17 @@ bool Pattern::checkPattern(const std::shared_ptr<PtrExp> &pattern, size_t offset
 			debug("Memory: %08X %08lX\n", memory.base, memory.size);
 	}
 
+	if (pattern->type == PATTERN_TYPE_STATIC_VALUE) {
+		debug("Static value: %08X\n", pattern->staticValue);
+		return true;
+	}
+
 	int patternSize = pattern->bytes.size();
+	if (!patternSize) {
+		debug("FAIL: empty pattern!\n");
+		return false;
+	}
+
 	if (offset + patternSize >= memory.size) {
 		if (m_debugHandler)
 			debug("FAIL: Address %08lX is out of range.\n", memory.base + offset);
@@ -205,7 +215,15 @@ std::pair<bool, Pattern::SearchResult> Pattern::decodeResult(const std::shared_p
 
 	switch (pattern->type) {
 		case PATTERN_TYPE_OFFSET:
-			return { true, { address, offset, address } };
+		{
+			uint32_t value = address;
+			if ((address & 1) == 0 && address >= memory.base && address < memory.base + memory.size) {
+				uint16_t instr = *reinterpret_cast<const uint16_t *>(memory.data + offset);
+				if ((instr & 0xFE00) == 0xB400) // PUSH
+					value |= 1;
+			}
+			return { true, { address, offset, value } };
+		}
 		break;
 
 		case PATTERN_TYPE_REFERENCE:
@@ -223,6 +241,10 @@ std::pair<bool, Pattern::SearchResult> Pattern::decodeResult(const std::shared_p
 				return { true, { address, offset, value + pattern->outputOffset } };
 		}
 		break;
+
+		case PATTERN_TYPE_STATIC_VALUE:
+			return { true, { 0, 0, pattern->staticValue } };
+		break;
 	}
 	return { false, { } };
 }
@@ -231,18 +253,32 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 	int firstNonWildcardByte = -1;
 	int patternSize = pattern->bytes.size();
 
-	for (int i = 0; i < patternSize; i++) {
-		if (pattern->masks[i] != 0x00) {
-			firstNonWildcardByte = i;
-			break;
-		}
-	}
+	std::vector<SearchResult> searchResults;
 
 	if (m_debugHandler) {
 		debug("Searching pattern: %s\n", stringify(pattern).c_str());
 		debug("Memory: %08X %08lX\n", memory.base, memory.size);
 		debug("firstNonWildcardByte=%d\n", firstNonWildcardByte);
 		debug("\n");
+	}
+
+	if (pattern->type == PATTERN_TYPE_STATIC_VALUE) {
+		debug("Static value: %08X\n", pattern->staticValue);
+		debug("\n");
+		searchResults.push_back({ 0, 0, pattern->staticValue });
+		return searchResults;
+	}
+
+	if (!patternSize) {
+		debug("FAIL: empty pattern!\n");
+		return searchResults;
+	}
+
+	for (int i = 0; i < patternSize; i++) {
+		if (pattern->masks[i] != 0x00) {
+			firstNonWildcardByte = i;
+			break;
+		}
 	}
 
 	if (firstNonWildcardByte == -1)
@@ -254,7 +290,6 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 	auto *masks = &pattern->masks[firstNonWildcardByte];
 	auto *bytes = &pattern->bytes[firstNonWildcardByte];
 	int size = patternSize - firstNonWildcardByte;
-	std::vector<SearchResult> searchResults;
 
 	if (size >= 4) { // faster
 		debug("Using fast pattern matching algorithm.\n");
@@ -339,14 +374,6 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 					}
 				}
 			}
-		}
-	}
-
-	if (m_debugHandler) {
-		debug("Search results (%ld):\n", searchResults.size());
-		debug("Off      | Addr     | Value\n");
-		for (auto result: searchResults) {
-			debug("%08X | %08X | %08X\n", result.offset, result.address, result.value);
 		}
 	}
 
@@ -504,7 +531,7 @@ std::pair<bool, uint32_t> Pattern::decodeThumbLDR(uint32_t offset, const uint8_t
 	if ((instr1 & 0xF800) == 0x4800) {
 		uint32_t instr1_offset8 = (instr1 & 0xFF) << 2;
 		uint32_t instr1_Rd = (instr1 & 0x700) >> 8;
-		uint32_t addr = offset + 4 + instr1_offset8;
+		uint32_t addr = offset + (offset % 4 == 0 ? 4 : 2) + instr1_offset8;
 		debug("%08X: %02X %02X        LDR R%d, [PC, #0x%X] ; 0x%08X\n", offset, bytes[0], bytes[1], instr1_Rd, instr1_offset8, addr);
 		return { true, addr };
 	}

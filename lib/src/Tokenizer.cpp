@@ -1,4 +1,5 @@
 #include "Tokenizer.h"
+#include <cctype>
 #include <strings.h>
 
 namespace Ptr89 {
@@ -16,6 +17,10 @@ const Tokenizer::Token &Tokenizer::peek() {
 	if (m_nextToken.type == TOK_NULL)
 		m_nextToken = parseToken();
 	return m_nextToken;
+}
+
+bool Tokenizer::isHex(char c) {
+	return (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') || (c >= '0' && c <= '9');
 }
 
 bool Tokenizer::isHexPattern(char c) {
@@ -101,6 +106,22 @@ Tokenizer::Token Tokenizer::parseToken() {
 			m_offset++;
 			return { TOK_SEPARATOR, start, m_offset };
 		break;
+		case '<':
+			m_offset++;
+			return { TOK_VALUE_OPEN, start, m_offset };
+		break;
+		case '>':
+			m_offset++;
+			return { TOK_VALUE_CLOSE, start, m_offset };
+		break;
+	}
+
+	if (m_input[m_offset] == '0' && avail() > 2 && tolower(m_input[m_offset + 1]) == 'x' && isHex(m_input[m_offset + 2])) {
+		m_offset += 3;
+		while (avail() > 0 && isHex(m_input[m_offset])) {
+			m_offset++;
+		}
+		return { TOK_HEX, start, m_offset };
 	}
 
 	if (isHexPattern(m_input[m_offset])) {
@@ -126,10 +147,12 @@ Tokenizer::Token Tokenizer::parseToken() {
 
 	if (m_input[m_offset] == '%') {
 		m_offset++;
-		while (avail() > 0 && m_input[m_offset] != '%') {
-			m_offset++;
-			if (m_input[m_offset] == '%')
+		while (avail() > 0) {
+			if (m_input[m_offset] == '%') {
+				m_offset++;
 				return { TOK_ASCII_STRING, start, m_offset };
+			}
+			m_offset++;
 		}
 	}
 
@@ -150,6 +173,8 @@ std::string Tokenizer::getTokenName(TokenType type) {
 		case TOK_2B_BRANCH_CLOSE:	return "2B_BRANCH_CLOSE";
 		case TOK_PAREN_OPEN:		return "PAREN_OPEN";
 		case TOK_PAREN_CLOSE:		return "PAREN_CLOSE";
+		case TOK_VALUE_OPEN:		return "VALUE_OPEN";
+		case TOK_VALUE_CLOSE:		return "VALUE_CLOSE";
 		case TOK_SEPARATOR:			return "SEPARATOR";
 		case TOK_WHITESPACE:		return "WHITESPACE";
 		case TOK_PLUS:				return "PLUS";

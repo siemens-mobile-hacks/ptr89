@@ -19,6 +19,8 @@ class Tokenizer {
 			TOK_2B_BRANCH_CLOSE,
 			TOK_PAREN_OPEN,
 			TOK_PAREN_CLOSE,
+			TOK_VALUE_OPEN,
+			TOK_VALUE_CLOSE,
 			TOK_SEPARATOR,
 			TOK_WHITESPACE,
 			TOK_PLUS,
@@ -42,6 +44,7 @@ class Tokenizer {
 		int m_savedOffset = 0;
 		std::string m_input;
 		Token parseToken();
+		static bool isHex(char c);
 		static bool isHexPattern(char c);
 		static bool isBinPattern(char c);
 		inline int avail() {

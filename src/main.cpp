@@ -1,49 +1,64 @@
-#include <chrono>
-#include <cstdint>
-#include <cstdio>
-#include <string>
-#include <cassert>
-#include <filesystem>
-#include <ptr89.h>
-#include <argparse/argparse.hpp>
-#include <nlohmann/json.hpp>
+#include "main.h"
 
 using json = nlohmann::json;
 using namespace Ptr89;
 
-std::pair<uint8_t *, size_t> readBinaryFile(const std::string &path);
-int64_t getCurrentTimestamp();
-
 int main(int argc, char *argv[]) {
 	argparse::ArgumentParser program("ptr89");
+
 	program.add_argument("-f", "--file")
-		.help("fullflash dump file")
 		.required()
 		.nargs(1);
 	program.add_argument("-b", "--base")
-		.help("fullflash base address (HEX)")
 		.default_value("A0000000")
 		.nargs(1);
 	program.add_argument("-p", "--pattern")
-		.help("pattern to search")
 		.append()
-		.default_value("");
+		.default_value("")
+		.nargs(1);
+	program.add_argument("--from-ini")
+		.default_value("")
+		.nargs(1);
 	program.add_argument("-V", "--verbose")
-		.help("enable debug information output")
 		.default_value(false)
 		.implicit_value(true)
 		.nargs(0);
 	program.add_argument("-J", "--json")
-		.help("JSON output")
+		.default_value(false)
+		.implicit_value(true)
+		.nargs(0);
+	program.add_argument("-h", "--help")
 		.default_value(false)
 		.implicit_value(true)
 		.nargs(0);
 
+	auto showHelp = []() {
+		std::cerr << "Usage: ptr89 [arguments]\n";
+		std::cerr << "\n";
+		std::cerr << "Global options:\n";
+		std::cerr << "  -h, --help               show this help\n";
+		std::cerr << "  -f, --file FILE          fullflash file [required]\n";
+		std::cerr << "  -b, --base HEX           fullflash base address [default: A0000000]\n";
+		std::cerr << "  -V, --verbose            enable debug\n";
+		std::cerr << "  -J, --json               output as JSON\n";
+		std::cerr << "\n";
+		std::cerr << "Find patterns:\n";
+		std::cerr << "  -p, --pattern STRING     pattern to search\n";
+		std::cerr << "\n";
+		std::cerr << "Find patterns from functions.ini:\n";
+		std::cerr << "  --from-ini FILE          path to functions.ini\n";
+	};
+
 	try {
 		program.parse_args(argc, argv);
 	} catch (const std::exception &err) {
-		std::cerr << err.what() << std::endl;
-		std::cerr << program;
+		std::cerr << "ERROR: " << err.what() << "\n\n";
+		showHelp();
+		return 1;
+	}
+
+	if (program.is_used("--help")) {
+		showHelp();
 		return 1;
 	}
 
@@ -54,10 +69,10 @@ int main(int argc, char *argv[]) {
 	Pattern::Memory memoryRegion = { 0xA0000000, memory, memorySize };
 
 	auto asJSON = program.get<bool>("--json");
+	json j;
 
-	auto patterns = program.get<std::vector<std::string>>("--pattern");
-	if (patterns.size() > 0) {
-		json j;
+	if (program.is_used("--pattern")) {
+		auto patterns = program.get<std::vector<std::string>>("--pattern");
 		j["patterns"] = json::array();
 
 		auto start = duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
@@ -65,9 +80,9 @@ int main(int argc, char *argv[]) {
 			auto pattern = Pattern::parse(patternStr);
 			auto results = Pattern::find(pattern, memoryRegion);
 			if (asJSON) {
-				json row;
-				row["pattern"] = patternStr;
-				row["results"] = json::array();
+				json patternJson;
+				patternJson["pattern"] = patternStr;
+				patternJson["results"] = json::array();
 				for (auto &result: results) {
 					json item;
 					item["address"] = result.address;
@@ -78,40 +93,130 @@ int main(int argc, char *argv[]) {
 						item["type"] = "offset";
 					} else if (pattern->type == PATTERN_TYPE_POINTER) {
 						item["type"] = "pointer";
-					} else if (pattern->type == Ptr89::PATTERN_TYPE_REFERENCE) {
+					} else if (pattern->type == PATTERN_TYPE_REFERENCE) {
 						item["type"] = "reference";
+					} else if (pattern->type == PATTERN_TYPE_STATIC_VALUE) {
+						item["type"] = "static_value";
 					}
 
-					row["results"].push_back(item);
+					patternJson["results"].push_back(item);
 				}
-				j["patterns"].push_back(row);
+				j["patterns"].push_back(patternJson);
 			} else {
 				printf("Pattern: '%s'\n", patternStr.c_str());
 				printf("Found %ld matches:\n", results.size());
 				for (auto &result: results) {
 					if (pattern->type == PATTERN_TYPE_OFFSET) {
-						printf("  %08X\n", result.address);
+						printf("  %08X: %08X (offset)\n", result.address, result.value);
 					} else if (pattern->type == PATTERN_TYPE_POINTER) {
-						printf("  %08X: %08X\n", result.address, result.value);
-					} else if (pattern->type == Ptr89::PATTERN_TYPE_REFERENCE) {
-						printf("  %08X: %08X\n", result.address, result.value);
+						printf("  %08X: %08X (pointer)\n", result.address, result.value);
+					} else if (pattern->type == PATTERN_TYPE_REFERENCE) {
+						printf("  %08X: %08X (reference)\n", result.address, result.value);
+					} else if (pattern->type == PATTERN_TYPE_STATIC_VALUE) {
+						printf("  %08X (static value)\n", result.value);
 					}
 				}
 				printf("\n");
 			}
 		}
 		auto end = duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-		if (asJSON) {
-			j["elapsed"] = end - start;
-			printf("%s\n", j.dump(2).c_str());
-		} else {
+		j["elapsed"] = end - start;
+
+		if (!asJSON) {
 			printf("Search done in %ld ms\n", end - start);
 		}
+	} else if (program.is_used("--from-ini")) {
+		auto start = duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+		auto patternsLib = parsePatternsIni(program.get<std::string>("--from-ini"));
+
+		j["patterns"] = json::array();
+
+		for (auto &entry: patternsLib) {
+			auto pattern = Pattern::parse(entry.pattern);
+			auto results = Pattern::find(pattern, memoryRegion, 1);
+
+			if (asJSON) {
+				json patternJson;
+				patternJson["pattern"] = entry.pattern;
+				patternJson["id"] = entry.id;
+				patternJson["function"] = entry.funcName;
+				patternJson["results"] = json::array();
+				for (auto &result: results) {
+					json item;
+					item["address"] = result.address;
+					item["offset"] = result.offset;
+					item["value"] = result.value;
+
+					if (pattern->type == PATTERN_TYPE_OFFSET) {
+						item["type"] = "offset";
+					} else if (pattern->type == PATTERN_TYPE_POINTER) {
+						item["type"] = "pointer";
+					} else if (pattern->type == PATTERN_TYPE_REFERENCE) {
+						item["type"] = "reference";
+					} else if (pattern->type == PATTERN_TYPE_STATIC_VALUE) {
+						item["type"] = "static_value";
+					}
+
+					patternJson["results"].push_back(item);
+				}
+				j["patterns"].push_back(patternJson);
+			} else {
+				if (entry.id > 0 && (entry.id & 0xF) == 0)
+					printf("\n");
+
+				if (results.size() > 0 && results[0].value != 0xFFFFFFFF) {
+					auto result = results[0];
+					printf("%04X: 0x%08X   ;%4X: %s\n", entry.id * 4, result.value, entry.id, entry.funcName.c_str());
+				} else {
+					printf(";%03X:              ;%4X: %s\n", entry.id * 4, entry.id, entry.funcName.c_str());
+				}
+			}
+		}
+		auto end = duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+		j["elapsed"] = end - start;
+	}
+
+	if (asJSON) {
+		printf("%s\n", j.dump(2).c_str());
 	}
 
 	delete[] memory;
 
 	return 0;
+}
+
+std::vector<PatternsLibraryItem> parsePatternsIni(const std::string &iniFile) {
+	auto iniText = readFile(iniFile);
+	std::regex exp(R"(^[ \t]*([0-9a-f]+):[ \t]*([^=;\n]+)(?:[ \t]*=[ \t]*([^;:\n]*))?)", std::regex::icase | std::regex::multiline);
+	std::smatch m;
+	std::vector<PatternsLibraryItem> results;
+	auto searchStart = iniText.cbegin();
+	while (std::regex_search(searchStart, iniText.cend(), m, exp)) {
+		auto id = stoi(m[1].str(), NULL, 16);
+		auto funcName = trim(m[2].str());
+		auto patternStr = trim(m[3].str());
+		results.push_back({ id, funcName, patternStr });
+		searchStart = m.suffix().first;
+	}
+	return results;
+}
+
+std::string readFile(const std::string &path) {
+	FILE *fp = fopen(path.c_str(), "r");
+	if (!fp) {
+		throw std::runtime_error("fopen(" + path + ") error: " + strerror(errno));
+	}
+
+	char buff[4096];
+	std::string result;
+	while (!feof(fp)) {
+		int readed = fread(buff, 1, sizeof(buff), fp);
+		if (readed > 0)
+			result.append(buff, readed);
+	}
+	fclose(fp);
+
+	return result;
 }
 
 std::pair<uint8_t *, size_t> readBinaryFile(const std::string &path) {
@@ -120,13 +225,13 @@ std::pair<uint8_t *, size_t> readBinaryFile(const std::string &path) {
 		throw std::runtime_error("fopen(" + path + ") error: " + strerror(errno));
 	}
 
-	size_t max_file_size = std::filesystem::file_size(path);
-	uint8_t *bytes = new uint8_t[max_file_size];
+	size_t maxFileSize = std::filesystem::file_size(path);
+	uint8_t *bytes = new uint8_t[maxFileSize];
 
 	char buff[4096];
 	size_t readed = 0;
-	while (!feof(fp) && readed < max_file_size) {
-		int ret = fread(bytes + readed, 1, std::min(4096LU, max_file_size - readed), fp);
+	while (!feof(fp) && readed < maxFileSize) {
+		int ret = fread(bytes + readed, 1, std::min(4096LU, maxFileSize - readed), fp);
 		if (ret > 0) {
 			readed += ret;
 		} else if (ret < 0) {
@@ -136,4 +241,14 @@ std::pair<uint8_t *, size_t> readBinaryFile(const std::string &path) {
 	fclose(fp);
 
 	return { bytes, readed };
+}
+
+std::string trim(std::string s) {
+	s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](uint8_t c) {
+		return !isspace(c);
+	}));
+	s.erase(std::find_if(s.rbegin(), s.rend(), [](uint8_t c) {
+		return !isspace(c);
+	}).base(), s.end());
+	return s;
 }

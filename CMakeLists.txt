@@ -9,6 +9,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 include_directories("./lib" "./third_party/argparse/include" "./third_party/json/include")
 
 add_executable(ptr89 src/main.cpp lib/src/Pattern.cpp lib/src/Tokenizer.cpp lib/src/Parser.cpp lib/src/utils.cpp)
+target_precompile_headers(ptr89 PRIVATE <argparse/argparse.hpp> <nlohmann/json.hpp> <string> <vector> <memory> <regex> <map> <tuple> <stdexcept>)
 install(TARGETS ptr89 DESTINATION /usr/bin)
 
 # enable_testing()
