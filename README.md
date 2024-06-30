@@ -155,6 +155,19 @@ Syntax:
 [ subPattern ]
 ```
 
+Supported instructions:
+```
+# ARM
+B #offset
+BL #offset
+BLX #offset
+LDR PC, [PC, #offset]
+
+# THUMB
+BL #offset
+BLX #offset
+```
+
 For example:
 ```bash
 ?? 1C ?? 48 ?? B5 ?? 68    { ?? 1C ?? 68 ?? 68 ?? 2B ?? D0 ?? 68 [ ?? 23 [ ?? B5 ?? 1C ?? 6E ] ] 47 }    BD + 0x1
@@ -190,6 +203,31 @@ LDR{ subPattern }
 # THUMB LDR (2 bytes instruction)
 LDR[ subPattern ]
 ```
+
+Supported instructions:
+```
+# ARM/THUMB
+LDR Rd, [PC, #offset]
+```
+
+For example:
+```bash
+00 [00101...] ?? D1 LDR [ 7F 16 65 62 73 64 E3 ] ?? [0001110.] ?? [00100...] ?? [111100..] ?? [11.0....] ?? [00101...] ?? D0 02 DF ?? [0001110.] ?? [0001110.] ?? [00100...] 01 20 ?? [111100..] ?? [11.0....] ?? [11100...] 03 DF ?? [0001110.] ?? [0001110.] ?? [00100...] 01 20 ?? [111100..] ?? [11.0....]
+```
+
+Steps:
+1. Pattern `00 [00101...] ?? D1     ?? ??      ?? [0001110.] ?? [00100...] ?? [111100..] ?? [11.0....] ?? [00101...] ?? D0 02 DF ?? [0001110.] ?? [0001110.] ?? [00100...] 01 20 ?? [111100..] ?? [11.0....] ?? [11100...] 03 DF ?? [0001110.] ?? [0001110.] ?? [00100...] 01 20 ?? [111100..] ?? [11.0....]` was found at 0xA0A63270
+3. Emulating LDR at 0xA0A63274 (+4)
+   ```asm
+   A0A63274: 6F 4C ; LDR R4, [PC, #0x1BC]
+   ; Emulation: PC + 0x1BC = 0xA0A63434
+   ```
+4. Decoding pointer at 0xA0A63434
+	```asm
+	A0A63434: D6 99 C6 A0 ; 0xA0C699D6
+	```
+5. Checking pattern `7F 16 65 62 73 64 E3` at 0xA0C699D6
+6. Result is: `0xA0A63270`
 
 ### Stub value
 Usually used in `patterns.ini` for stub entries.
