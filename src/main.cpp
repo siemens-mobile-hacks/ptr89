@@ -1,4 +1,5 @@
 #include "main.h"
+#include <cstddef>
 #include <cstdint>
 
 using json = nlohmann::json;
@@ -241,7 +242,7 @@ std::pair<uint8_t *, size_t> readBinaryFile(const std::string &path) {
 	char buff[4096];
 	size_t readed = 0;
 	while (!feof(fp) && readed < maxFileSize) {
-		int ret = fread(bytes + readed, 1, std::min(4096LU, maxFileSize - readed), fp);
+		int ret = fread(bytes + readed, 1, std::min(static_cast<size_t>(4096), maxFileSize - readed), fp);
 		if (ret > 0) {
 			readed += ret;
 		} else if (ret < 0) {
