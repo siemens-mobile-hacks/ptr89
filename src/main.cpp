@@ -1,4 +1,5 @@
 #include "main.h"
+#include <cstdint>
 
 using json = nlohmann::json;
 using namespace Ptr89;
@@ -11,6 +12,9 @@ int main(int argc, char *argv[]) {
 		.nargs(1);
 	program.add_argument("-b", "--base")
 		.default_value("A0000000")
+		.nargs(1);
+	program.add_argument("-a", "--align")
+		.default_value(1)
 		.nargs(1);
 	program.add_argument("-p", "--pattern")
 		.append()
@@ -39,6 +43,7 @@ int main(int argc, char *argv[]) {
 		std::cerr << "  -h, --help               show this help\n";
 		std::cerr << "  -f, --file FILE          fullflash file [required]\n";
 		std::cerr << "  -b, --base HEX           fullflash base address [default: A0000000]\n";
+		std::cerr << "  -a, --align N            search align [default: 1]\n";
 		std::cerr << "  -V, --verbose            enable debug\n";
 		std::cerr << "  -J, --json               output as JSON\n";
 		std::cerr << "\n";
@@ -65,8 +70,13 @@ int main(int argc, char *argv[]) {
 	if (program.get<bool>("--verbose"))
 		Pattern::setDebugHandler(vprintf);
 
+	uint32_t memoryBase = stol(program.get<std::string>("--base"), NULL, 16);
+	int memoryAlign = program.get<int>("--align");
+	if (memoryAlign <= 0)
+		throw std::runtime_error("Invalid align value.");
+
 	auto [memory, memorySize] = readBinaryFile(program.get<std::string>("--file"));
-	Pattern::Memory memoryRegion = { 0xA0000000, memory, memorySize };
+	Pattern::Memory memoryRegion = { memoryBase, memory, memorySize, memoryAlign };
 
 	auto asJSON = program.get<bool>("--json");
 	json j;
