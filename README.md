@@ -128,3 +128,34 @@ A093BB38: 10 97 E6 A8
 ```
 
 3. Result is `0xA8E69710 + 0x4 = 0xA8E69714`
+
+### Nested patterns for branches
+Follow the branch and checking it for a pattern.
+
+Syntax:
+```bash
+# ARM B/BL/BLX or THUMB BL/BLX (4 bytes instruction)
+{ subPattern }
+
+# THUMB B (2 bytes instruction)
+[ subPattern ]
+```
+
+### Nested patterns for references
+Follow the reference and checking it for a pattern.
+
+Syntax:
+```bash
+# ARM LDR (4 bytes instruction)
+LDR{ subPattern }
+
+# THUMB LDR (2 bytes instruction)
+LDR[ subPattern ]
+```
+
+### Stub value
+Usually used in `patterns.ini` for stub entries.
+```bash
+# Pattern result is 0xA8000000
+< A8000000 >
+```
