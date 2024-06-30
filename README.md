@@ -110,7 +110,7 @@ Steps:
 1. Pattern `B801C4E10200A0E30000C1E5B601D4E11040BDE8??????EA+20` was found at 0xA009B7A0
 2. Decoding bytes as pointer at 0xA009B7A0:
 	```asm
-	A009B7A0: CC 5B D9 A8
+	A009B7A0: CC 5B D9 A8 ; 0xA8D95BCC
 	```
 3. Result is `0xA8D95BCC + 0x2 = 0xA8D95BCE`
 
@@ -138,7 +138,7 @@ Steps:
 	```
 3. Decoding pointer at 0xA093BB38
 	```asm
-	A093BB38: 10 97 E6 A8
+	A093BB38: 10 97 E6 A8 ; 0xA8E69710
 	```
 
 3. Result is `0xA8E69710 + 0x4 = 0xA8E69714`
