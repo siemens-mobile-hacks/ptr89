@@ -181,6 +181,7 @@ Syntax:
 ```bash
 # ARM B/BL/BLX or THUMB BL/BLX (4 bytes instruction)
 { subPattern }
+_BLF(subPattern) # alias for { }
 
 # THUMB B (2 bytes instruction)
 [ subPattern ]
