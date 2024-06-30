@@ -64,7 +64,7 @@ ptr89 -f EL71v45.bin --from-ini ELKA.ini > swilib.vkp
 
 Syntax is fully compatible with WinHex, Smelter and Ghidra SRE patterns.
 
-## Simple byte maks
+## Simple byte masks
 ```bash
 # Exact match one byte
 B5
