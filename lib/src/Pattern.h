@@ -68,6 +68,7 @@ class Pattern {
 			uint32_t base;
 			uint8_t *data;
 			size_t size;
+			int align = 1;
 		};
 
 		struct SearchResult {

@@ -400,7 +400,7 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 	}
 
 	// Align optimization
-	int align = findAlignForPattern(pattern, 1);
+	int align = findAlignForPattern(pattern, memory.align);
 	debug("Search align: %d\n", align);
 
 	/*
