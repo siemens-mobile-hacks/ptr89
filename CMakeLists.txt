@@ -15,5 +15,5 @@ target_precompile_headers(ptr89 PRIVATE <argparse/argparse.hpp> <nlohmann/json.h
 install(TARGETS ptr89 DESTINATION /usr/bin)
 
 enable_testing()
-add_executable(ptr89-test src/tests.cpp ${LIB_SRC})
+add_executable(ptr89-tests src/tests.cpp ${LIB_SRC})
 add_test(NAME test COMMAND ptr89-tests)
