@@ -13,6 +13,21 @@ Main features:
 
 The name was chosen in respect to [Viktor89](https://patches.kibab.com/user.php5?action=view_profile&id=4205), who is greatest patch porter in the Siemens Mobile modding scene.
 
+# DOWNLOAD
+- Windows: download .exe in [Releases](https://github.com/siemens-mobile-hacks/ptr89/releases).
+- Ubuntu/Debian: download .deb in [Releases](https://github.com/siemens-mobile-hacks/ptr89/releases).
+- Build from sources:
+	```bash
+	# Ubuntu/Debian
+	fakeroot debian/rules binary
+	
+	# OSX/Linux/Unix
+	mkdir build
+	cd build
+	cmake ..
+	make -j$(nproc)
+	```
+
 # USAGE
 ```
 Usage: ptr89 [arguments]
