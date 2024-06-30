@@ -86,7 +86,7 @@ B801C4E10200A0E30000C1E5B601D4E11040BDE8??????EA + 20
 ```
 
 Steps:
-1. Pattern `B801C4E10200A0E30000C1E5B601D4E11040BDE8??????EA` was found at 0xA009B780
+1. Pattern `B801C4E10200A0E30000C1E5B601D4E11040BDE8??????EA` found at 0xA009B780
 2. Result is `0xA009B780 + 0x20 = 0xA009B7A0`
 
 ### Decode as pointer
@@ -107,7 +107,7 @@ For example:
 ```
 
 Steps:
-1. Pattern `B801C4E10200A0E30000C1E5B601D4E11040BDE8??????EA+20` was found at 0xA009B7A0
+1. Pattern `B801C4E10200A0E30000C1E5B601D4E11040BDE8??????EA+20` found at 0xA009B7A0
 2. Decoding bytes as pointer at 0xA009B7A0:
 	```asm
 	A009B7A0: CC 5B D9 A8 ; 0xA8D95BCC
@@ -130,7 +130,7 @@ For example:
 ```
 
 Steps:
-1. Pattern `??,48,??,47,??,B5,??,B0,??,1C,??,D1,??,20` was found at 0xA093BA58
+1. Pattern `??,48,??,47,??,B5,??,B0,??,1C,??,D1,??,20` found at 0xA093BA58
 2. Emulating LDR on 0xA093BA58:
 	```asm
 	A093BA58: 37 48           ; ldr r0, [pc, #0xdc]
@@ -174,7 +174,7 @@ For example:
 ```
 
 Steps:
-1. Pattern `?? 1C ?? 48 ?? B5 ?? 68    ?? ?? ?? ??    BD + 0x1` was found at 0xA0978822
+1. Pattern `?? 1C ?? 48 ?? B5 ?? 68    ?? ?? ?? ??    BD + 0x1` found at 0xA0978822
     ```asm
     A0978822: 01 1C           ADD        R1,R0,#0x0
 	A0978824: 62 48           LDR        R0,[DAT_A09789B0]
@@ -245,7 +245,7 @@ LDR{ 436f70797269676874204d47432032303034 } 1e ff 2f e1
 ```
 
 Steps:
-1. Pattern `?? ?? ?? ??    1e ff 2f e1` was found at 0xA00A0B1C
+1. Pattern `?? ?? ?? ??    1e ff 2f e1` found at 0xA00A0B1C
 3. Emulating LDR at 0xA00A0B1C (+0)
    ```asm
    A00A0B1C: 00 00 9F E5  LDR R0, [PC, #+0x0] ; 0xA00A0B24
@@ -260,6 +260,27 @@ Steps:
  	A00A341D: ds "Copyright MGC 2004 - Nucleus PLUS - Integrator RVCT v. 1.15"
  	```
 6. Result is: `0xA0A63270`
+
+### Automatic THUMB bit
+If the found address points to a THUMB `PUSH { ... }` instruction, +1 will be added to the result.
+
+Example:
+```
+??,06,??,0E,??,38,??,30,??,78,??,42,??,D0,??,29,??,D1,??,42,??,D0,??,20,??,47
+```
+
+Steps:
+1. Pattern `F0B5061C0C1C151C85B068461122??49??????????E0207869466A460009085C307021780134` found at 0xA058BB98
+	```asm
+	A058BB98 F0 B5           PUSH       {R4,R5,R6,R7,LR} ; <-- see this
+	A058BB9A 06 1C           ADD        R6,R0,#0x0
+	A058BB9C 0C 1C           ADD        R4,R1,#0x0
+	A058BB9E 15 1C           ADD        R5,R2,#0x0
+	A058BBA0 85 B0           SUB        SP,#0x14
+	A058BBA2 68 46           MOV        R0,SP
+	A058BBA4 11 22           MOV        R2,#0x11
+	```
+2. Result is: `0xA058BB98 | 1 = 0xA058BB99`
 
 ### Stub value
 Usually used in `patterns.ini` for stub entries.
