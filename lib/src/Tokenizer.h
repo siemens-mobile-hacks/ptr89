@@ -13,6 +13,7 @@ class Tokenizer {
 			TOK_REFERENCE,
 			TOK_POINTER,
 			TOK_BLF,
+			TOK_LDR,
 			TOK_4B_BRANCH_OPEN,
 			TOK_4B_BRANCH_CLOSE,
 			TOK_2B_BRANCH_OPEN,
@@ -28,7 +29,7 @@ class Tokenizer {
 			TOK_HEX,
 			TOK_MASK,
 			TOK_BIN,
-			TOK_ASCII_STRING,
+			TOK_NAMED_BRANCH,
 		};
 
 		struct Token {

@@ -145,12 +145,17 @@ Tokenizer::Token Tokenizer::parseToken() {
 		return { TOK_BLF, start, m_offset };
 	}
 
+	if (tolower(m_input[m_offset]) == 'l' && strcasecmp(m_input.substr(m_offset, 3).c_str(), "ldr") == 0) {
+		m_offset += 3;
+		return { TOK_LDR, start, m_offset };
+	}
+
 	if (m_input[m_offset] == '%') {
 		m_offset++;
 		while (avail() > 0) {
 			if (m_input[m_offset] == '%') {
 				m_offset++;
-				return { TOK_ASCII_STRING, start, m_offset };
+				return { TOK_NAMED_BRANCH, start, m_offset };
 			}
 			m_offset++;
 		}
@@ -167,6 +172,7 @@ std::string Tokenizer::getTokenName(TokenType type) {
 		case TOK_REFERENCE:			return "REFERENCE";
 		case TOK_POINTER:			return "POINTER";
 		case TOK_BLF:				return "BLF";
+		case TOK_LDR:				return "LDR";
 		case TOK_4B_BRANCH_OPEN:	return "4B_BRANCH_OPEN";
 		case TOK_4B_BRANCH_CLOSE:	return "4B_BRANCH_CLOSE";
 		case TOK_2B_BRANCH_OPEN:	return "2B_BRANCH_OPEN";
@@ -182,7 +188,7 @@ std::string Tokenizer::getTokenName(TokenType type) {
 		case TOK_HEX:				return "HEX";
 		case TOK_MASK:				return "MASK";
 		case TOK_BIN:				return "BIN";
-		case TOK_ASCII_STRING:		return "ASCII_STRING";
+		case TOK_NAMED_BRANCH:		return "NAMED_BRANCH";
 	}
 	return "UNKNOWN";
 }

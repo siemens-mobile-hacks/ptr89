@@ -186,13 +186,13 @@ void Parser::parseSubPattern(SubPatternType type, Tokenizer::TokenType openTag, 
 		.size = 0
 	};
 
-	if (type == SUB_PATTERN_TYPE_BRANCH_2B) {
+	if (type == SUB_PATTERN_TYPE_BRANCH_2B || type == SUB_PATTERN_TYPE_LDR_2B) {
 		for (int i = 0; i < 2; i++) {
 			m_pattern.bytes.push_back(0);
 			m_pattern.masks.push_back(0);
 		}
 		m_pattern.subPatterns[offset].size = 2;
-	} else if (type == SUB_PATTERN_TYPE_BRANCH_4B) {
+	} else if (type == SUB_PATTERN_TYPE_BRANCH_4B || type == SUB_PATTERN_TYPE_LDR_4B) {
 		for (int i = 0; i < 4; i++) {
 			m_pattern.bytes.push_back(0);
 			m_pattern.masks.push_back(0);
@@ -200,37 +200,10 @@ void Parser::parseSubPattern(SubPatternType type, Tokenizer::TokenType openTag, 
 		m_pattern.subPatterns[offset].size = 4;
 	}
 
+	m_pattern.inputOffset = parseOffset();
+	skipWhitespaces();
+
 	expectToken(closeTag);
-	m_tok.next();
-}
-
-void Parser::parseAsciiString() {
-	auto value = getTokenStr(m_tok.peek());
-	if (value.size() <= 2)
-		throw PatternError(this, "Empty string not allowed");
-
-	auto stringValue = value.substr(1, value.size() - 2);
-
-	SubPtrExp subPattern = { };
-	subPattern.type = SUB_PATTERN_TYPE_STRING;
-	subPattern.pattern = std::make_shared<PtrExp>(PtrExp());
-
-	for (int i = 1; i < value.size() - 2; i++) {
-		uint8_t byte = (uint8_t) value[i];
-		subPattern.pattern->bytes.push_back(byte);
-		subPattern.pattern->masks.push_back(0xFF);
-	}
-
-	int offset = m_pattern.bytes.size();
-	subPattern.offset = offset;
-	subPattern.size = 4;
-	m_pattern.subPatterns[offset] = subPattern;
-
-	for (int i = 0; i < 4; i++) {
-		m_pattern.bytes.push_back(0);
-		m_pattern.masks.push_back(0);
-	}
-
 	m_tok.next();
 }
 
@@ -258,8 +231,16 @@ bool Parser::parsePatternData() {
 			parseSubPattern(SUB_PATTERN_TYPE_BRANCH_4B, Tokenizer::TOK_PAREN_OPEN, Tokenizer::TOK_PAREN_CLOSE);
 		break;
 
-		case Tokenizer::TOK_ASCII_STRING:
-			parseAsciiString();
+		case Tokenizer::TOK_LDR:
+			m_tok.next();
+			skipWhitespaces();
+			expectTokens({ Tokenizer::TOK_2B_BRANCH_OPEN, Tokenizer::TOK_4B_BRANCH_OPEN });
+
+			if (m_tok.peek().type == Tokenizer::TOK_2B_BRANCH_OPEN) {
+				parseSubPattern(SUB_PATTERN_TYPE_LDR_2B, Tokenizer::TOK_2B_BRANCH_OPEN, Tokenizer::TOK_2B_BRANCH_CLOSE);
+			} else if (m_tok.peek().type == Tokenizer::TOK_4B_BRANCH_OPEN) {
+				parseSubPattern(SUB_PATTERN_TYPE_LDR_4B, Tokenizer::TOK_4B_BRANCH_OPEN, Tokenizer::TOK_4B_BRANCH_CLOSE);
+			}
 		break;
 
 		case Tokenizer::TOK_SEPARATOR:

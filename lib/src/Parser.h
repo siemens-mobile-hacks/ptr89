@@ -21,7 +21,6 @@ class Parser {
 		bool parsePatternData();
 		void parsePatternBody();
 		void parseStaticValue();
-		void parseAsciiString();
 		int parseOffset();
 		void skipWhitespaces();
 		void expectToken(Tokenizer::TokenType tokenType);

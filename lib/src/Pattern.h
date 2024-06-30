@@ -22,7 +22,8 @@ enum PatternType {
 enum SubPatternType {
 	SUB_PATTERN_TYPE_BRANCH_4B,		// _blf(AB ?? CD ??) or { AB ?? CD ?? }
 	SUB_PATTERN_TYPE_BRANCH_2B,		// [ AB ?? CD ?? ]
-	SUB_PATTERN_TYPE_STRING,		// %string%
+	SUB_PATTERN_TYPE_LDR_4B,		// LDR{ AB ?? CD ?? }
+	SUB_PATTERN_TYPE_LDR_2B,		// LDR[ AB ?? CD ?? ]
 };
 
 struct PtrExp;
@@ -77,6 +78,7 @@ class Pattern {
 
 		static std::shared_ptr<PtrExp> parse(const std::string &pattern);
 		static std::string stringify(const std::shared_ptr<PtrExp> &pattern);
+		static int findAlignForPattern(const std::shared_ptr<PtrExp> &pattern, int align);
 		static std::vector<SearchResult> find(const std::shared_ptr<PtrExp> &pattern, const Memory &memory, int maxResults = 0);
 		static bool checkPattern(const std::shared_ptr<PtrExp> &pattern, size_t offset, const Memory &memory);
 		static std::pair<bool, uint32_t> decodeThumbBL(uint32_t offset, const uint8_t *bytes);

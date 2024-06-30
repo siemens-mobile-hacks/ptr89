@@ -120,7 +120,7 @@ bool Pattern::checkSubpatterns(const std::shared_ptr<PtrExp> &pattern, size_t of
 
 				auto [isThumb, thumbAddr] = decodeThumbB(memory.base + offset + p.offset, memory.data + offset + p.offset);
 				if (isThumb && inMemory(memory, thumbAddr, 4)) {
-					uint32_t fileOffset = thumbAddr - memory.base;
+					uint32_t fileOffset = thumbAddr - memory.base - p.pattern->inputOffset;
 					if (checkPattern(p.pattern, fileOffset, memory)) {
 						debugSectionEnd();
 						return true;
@@ -140,7 +140,7 @@ bool Pattern::checkSubpatterns(const std::shared_ptr<PtrExp> &pattern, size_t of
 				auto [isThumb, thumbAddr] = decodeThumbBL(memory.base + offset + p.offset, memory.data + offset + p.offset);
 				if (isThumb && inMemory(memory, thumbAddr, 4)) {
 					thumbAddr = resolveThrunks(thumbAddr, memory);
-					uint32_t fileOffset = thumbAddr - memory.base;
+					uint32_t fileOffset = thumbAddr - memory.base - p.pattern->inputOffset;
 					if (checkPattern(p.pattern, fileOffset, memory)) {
 						debugSectionEnd();
 						return true;
@@ -156,7 +156,7 @@ bool Pattern::checkSubpatterns(const std::shared_ptr<PtrExp> &pattern, size_t of
 				auto [isArm, armAddr] = decodeArmBL(memory.base + offset + p.offset, memory.data + offset + p.offset);
 				if (isArm && inMemory(memory, armAddr, 4)) {
 					armAddr = resolveThrunks(armAddr, memory);
-					uint32_t fileOffset = armAddr - memory.base;
+					uint32_t fileOffset = armAddr - memory.base - p.pattern->inputOffset;
 					if (checkPattern(p.pattern, fileOffset, memory)) {
 						debugSectionEnd();
 						return true;
@@ -169,13 +169,19 @@ bool Pattern::checkSubpatterns(const std::shared_ptr<PtrExp> &pattern, size_t of
 				if (m_debugHandler)
 					debug("Try decoding ARM THRUNK at %08lX\n", memory.base + offset + p.offset);
 
-				auto [isArmLdr, ldrAddr, isThrunk] = decodeArmLDR(memory.base + offset + p.offset, memory.data + offset + p.offset);
-				if (isArmLdr && isThrunk && inMemory(memory, armAddr, 4)) {
-					armAddr = resolveThrunks(armAddr, memory);
-					uint32_t fileOffset = armAddr - memory.base;
-					if (checkPattern(p.pattern, fileOffset, memory)) {
-						debugSectionEnd();
-						return true;
+				auto [isArmLdr, armLDR, isThrunk] = decodeArmLDR(memory.base + offset + p.offset, memory.data + offset + p.offset);
+				if (isArmLdr && isThrunk) {
+					auto [success, ptrAddr] = decodePointer(armLDR, memory);
+					if (success) {
+						ptrAddr = resolveThrunks(ptrAddr, memory);
+						uint32_t fileOffset = ptrAddr - memory.base - p.pattern->inputOffset;
+						if (checkPattern(p.pattern, fileOffset, memory)) {
+							debugSectionEnd();
+							return true;
+						}
+					} else {
+						if (m_debugHandler)
+							debug("FAIL: invalid pointer!\n");
 					}
 				} else {
 					if (m_debugHandler)
@@ -184,8 +190,54 @@ bool Pattern::checkSubpatterns(const std::shared_ptr<PtrExp> &pattern, size_t of
 			}
 			break;
 
-			case SUB_PATTERN_TYPE_STRING:
+			case SUB_PATTERN_TYPE_LDR_2B:
+			{
+				if (m_debugHandler)
+					debug("Try decoding THUMB LDR at %08lX\n", memory.base + offset + p.offset);
 
+				auto [isThumbLdr, thumbLdrAddr] = decodeThumbLDR(memory.base + offset + p.offset, memory.data + offset + p.offset);
+				if (isThumbLdr) {
+					auto [success, ptrAddr] = decodePointer(thumbLdrAddr, memory);
+					if (success) {
+						uint32_t fileOffset = ptrAddr - memory.base - p.pattern->inputOffset;
+						if (checkPattern(p.pattern, fileOffset, memory)) {
+							debugSectionEnd();
+							return true;
+						}
+					} else {
+						if (m_debugHandler)
+							debug("FAIL: invalid pointer!\n");
+					}
+				} else {
+					if (m_debugHandler)
+						debug("FAIL: not instruction!\n");
+				}
+			}
+			break;
+
+			case SUB_PATTERN_TYPE_LDR_4B:
+			{
+				if (m_debugHandler)
+					debug("Try decoding ARM LDR at %08lX\n", memory.base + offset + p.offset);
+
+				auto [isArmLdr, armLdrAddr, isArmThrunk] = decodeArmLDR(memory.base + offset + p.offset, memory.data + offset + p.offset);
+				if (isArmLdr) {
+					auto [success, ptrAddr] = decodePointer(armLdrAddr, memory);
+					if (success) {
+						uint32_t fileOffset = ptrAddr - memory.base - p.pattern->inputOffset;
+						if (checkPattern(p.pattern, fileOffset, memory)) {
+							debugSectionEnd();
+							return true;
+						}
+					} else {
+						if (m_debugHandler)
+							debug("FAIL: invalid pointer!\n");
+					}
+				} else {
+					if (m_debugHandler)
+						debug("FAIL: not instruction!\n");
+				}
+			}
 			break;
 		}
 	}
@@ -284,8 +336,38 @@ std::pair<bool, Pattern::SearchResult> Pattern::decodeResult(const std::shared_p
 	return { false, { } };
 }
 
+int Pattern::findAlignForPattern(const std::shared_ptr<PtrExp> &pattern, int align) {
+	for (auto &v: pattern->subPatterns) {
+		int offset = v.first;
+		auto &sp = v.second;
+		switch (sp.type) {
+			case SUB_PATTERN_TYPE_BRANCH_2B:
+				if ((offset % 2) == 0)
+					align = std::max(align, 2);
+			break;
+
+			case SUB_PATTERN_TYPE_BRANCH_4B:
+				if ((offset % 2) == 0)
+					align = std::max(align, 2);
+			break;
+
+			case SUB_PATTERN_TYPE_LDR_2B:
+				if ((offset % 2) == 0)
+					align = std::max(align, 2);
+			break;
+
+			case SUB_PATTERN_TYPE_LDR_4B:
+				if ((offset % 4) == 0)
+					align = std::max(align, 4);
+			break;
+		}
+	}
+	return align;
+}
+
 std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &pattern, const Memory &memory, int maxResults) {
-	int firstNonWildcardByte = -1;
+	int firstNonWildcardByte = 0;
+	bool isTrulyWildcard = true;
 	int patternSize = pattern->bytes.size();
 
 	std::vector<SearchResult> searchResults;
@@ -308,15 +390,18 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 		return searchResults;
 	}
 
+	// Wildcard optimization
 	for (int i = 0; i < patternSize; i++) {
 		if (pattern->masks[i] != 0x00) {
 			firstNonWildcardByte = i;
+			isTrulyWildcard = false;
 			break;
 		}
 	}
 
-	if (firstNonWildcardByte == -1)
-		throw std::runtime_error("Internal error!");
+	// Align optimization
+	int align = findAlignForPattern(pattern, 1);
+	debug("Search align: %d\n", align);
 
 	/*
 	 * Optimized variant of checkPattern().
@@ -325,7 +410,7 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 	auto *bytes = &pattern->bytes[firstNonWildcardByte];
 	int size = patternSize - firstNonWildcardByte;
 
-	if (size >= 4) { // faster
+	if (size >= 4 && !isTrulyWildcard) { // faster
 		debug("Using fast pattern matching algorithm.\n");
 
 		uint32_t mask = *reinterpret_cast<uint32_t *>(masks);
@@ -334,7 +419,7 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 		debug("Search prefix: mask=%08X, searchValue=%08X\n", mask, searchValue);
 		debug("\n");
 
-		for (size_t i = firstNonWildcardByte; i < memory.size - patternSize + 1; i++) {
+		for (size_t i = firstNonWildcardByte; i < memory.size - patternSize + 1; i += align) {
 			uint32_t memoryValue = *reinterpret_cast<const uint32_t *>(memory.data + i);
 			if ((memoryValue & mask) == searchValue) {
 				if (size == 4 || fuzzyMatch(bytes + 4, masks + 4, size -  4, memory.data + i + 4)) {
@@ -358,7 +443,14 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 								break;
 							}
 
-							i += size - 1;
+							if (align == 1) {
+								i += size - 1;
+							} else {
+								i += size;
+								if ((i % align) != 0)
+									i += align - (i % align);
+								i--;
+							}
 						} else {
 							debug("FAIL: can't decode result!\n");
 							debug("\n");
@@ -376,7 +468,7 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 		debug("Using slow pattern matching algorithm.\n");
 		debug("\n");
 
-		for (size_t i = firstNonWildcardByte; i < memory.size - patternSize + 1; i++) {
+		for (size_t i = firstNonWildcardByte; i < memory.size - patternSize + 1; i += align) {
 			if (fuzzyMatch(bytes, masks, size, memory.data + i)) {
 				size_t foundOffset = i - firstNonWildcardByte;
 				if (m_debugHandler)
@@ -396,7 +488,14 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 							break;
 						}
 
-						i += size - 1;
+						if (align == 1) {
+							i += size - 1;
+						} else {
+							i += size;
+							if ((i % align) != 0)
+								i += align - (i % align);
+							i--;
+						}
 					} else {
 						debug("FAIL: can't decode result!\n");
 						debug("\n");
@@ -436,6 +535,10 @@ std::string Pattern::stringify(const std::shared_ptr<PtrExp> &pattern) {
 				tmp.push_back("[ " + stringify(p.pattern) + " ]");
 			} else if (p.type == SUB_PATTERN_TYPE_BRANCH_4B) {
 				tmp.push_back("{ " + stringify(p.pattern) + " }");
+			} else if (p.type == SUB_PATTERN_TYPE_LDR_2B) {
+				tmp.push_back("LDR[ " + stringify(p.pattern) + " ]");
+			} else if (p.type == SUB_PATTERN_TYPE_LDR_4B) {
+				tmp.push_back("LDR{ " + stringify(p.pattern) + " }");
 			}
 			i += p.size;
 		} else {
@@ -465,7 +568,7 @@ std::string Pattern::stringify(const std::shared_ptr<PtrExp> &pattern) {
 	}
 
 	if (pattern->inputOffset != 0)
-		tmp.push_back(strprintf("%c %X", pattern->inputOffset < 0 ? '-' : '+', abs(pattern->inputOffset)));
+		tmp.push_back(strprintf("%c 0x%X", pattern->inputOffset < 0 ? '-' : '+', abs(pattern->inputOffset)));
 
 	patternText += strJoin(" ", tmp);
 
@@ -474,7 +577,7 @@ std::string Pattern::stringify(const std::shared_ptr<PtrExp> &pattern) {
 	}
 
 	if (pattern->outputOffset != 0)
-		patternText += strprintf(" %c %X", pattern->inputOffset < 0 ? '-' : '+', abs(pattern->outputOffset));
+		patternText += strprintf(" %c 0x%X", pattern->inputOffset < 0 ? '-' : '+', abs(pattern->outputOffset));
 
 	return patternText;
 }
