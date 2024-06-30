@@ -1,3 +1,17 @@
+# Ptr89
+
+There is yet another ARM/THUMB pattern finder.
+
+Main features:
+- Compatible with Smelter patterns syntax.
+- Compatible with Ghidra SRE patterns syntax.
+- Enhanced patterns syntax:
+	- Nested patterns for LDR.
+	- Half-byte patterns.
+	- Bitmask patterns.
+
+The name was chosen in respect to [Viktor89](https://patches.kibab.com/user.php5?action=view_profile&id=4205), who is greatest patch porter in the Siemens Mobile modding scene.
+
 # USAGE
 ```
 Usage: ptr89 [arguments]
@@ -95,9 +109,9 @@ For example:
 Steps:
 1. Pattern `B801C4E10200A0E30000C1E5B601D4E11040BDE8??????EA+20` was found at 0xA009B7A0
 2. Decoding bytes as pointer at 0xA009B7A0:
-```
-A009B7A0: CC 5B D9 A8
-```
+	```asm
+	A009B7A0: CC 5B D9 A8
+	```
 3. Result is `0xA8D95BCC + 0x2 = 0xA8D95BCE`
 
 ### Decode as reference
@@ -118,14 +132,14 @@ For example:
 Steps:
 1. Pattern `??,48,??,47,??,B5,??,B0,??,1C,??,D1,??,20` was found at 0xA093BA58
 2. Emulating LDR on 0xA093BA58:
-```
-A093BA58: 37 48           ; ldr r0, [pc, #0xdc]
-; Emulation: PC + 0xDC = 0xA093BB38
-```
+	```asm
+	A093BA58: 37 48           ; ldr r0, [pc, #0xdc]
+	; Emulation: PC + 0xDC = 0xA093BB38
+	```
 3. Decoding pointer at 0xA093BB38
-```
-A093BB38: 10 97 E6 A8
-```
+	```asm
+	A093BB38: 10 97 E6 A8
+	```
 
 3. Result is `0xA8E69710 + 0x4 = 0xA8E69714`
 
@@ -142,26 +156,26 @@ Syntax:
 ```
 
 For example:
-```
+```bash
 ?? 1C ?? 48 ?? B5 ?? 68    { ?? 1C ?? 68 ?? 68 ?? 2B ?? D0 ?? 68 [ ?? 23 [ ?? B5 ?? 1C ?? 6E ] ] 47 }    BD + 0x1
 ```
 
 Steps:
 1. Pattern `?? 1C ?? 48 ?? B5 ?? 68    ?? ?? ?? ??    BD + 0x1` was found at 0xA0978822
 2. Emulating BL at 0xA097882A (+8)
-```
-A097882A: 9E F0 F6 FD ; BL #0xA0A1741A
-```
+	```asm
+	A097882A: 9E F0 F6 FD ; BL #0xA0A1741A
+	```
 3. Checking pattern `?? 1C ?? 68 ?? 68 ?? 2B ?? D0 ?? 68     ?? ??     47` at 0xA0A1741A
 4. Emulating BL at 0xA0A17426 (+12)
-```
-A0A17426: F6 E7 ; B #0xA0A17416
-```
+	```asm
+	A0A17426: F6 E7 ; B #0xA0A17416
+	```
 5. Checking pattern `?? 23    ?? ??` at 0xA0A1741A
 6. Emulating BL at 0xA0A17418 (+2)
-```
-A0A17418: D7 E7 ; B #0xA0A173CA
-```
+	```asm
+	A0A17418: D7 E7 ; B #0xA0A173CA
+	```
 7. Checking pattern `?? B5 ?? 1C ?? 6E` at 0xA0A173CA
 8. Pattern result is `0xA0978822 + 0x1 = 0xA0978823`
 
