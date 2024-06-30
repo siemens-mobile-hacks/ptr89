@@ -9,6 +9,7 @@ Main features:
 	- Nested patterns for LDR.
 	- Half-byte patterns.
 	- Bitmask patterns.
+ - JSON output.
 
 The name was chosen in respect to [Viktor89](https://patches.kibab.com/user.php5?action=view_profile&id=4205), who is greatest patch porter in the Siemens Mobile modding scene.
 
@@ -31,9 +32,39 @@ Find patterns from functions.ini:
   --from-ini FILE          path to functions.ini
 ```
 
+### Find patterns
+```bash
+$ ptr89 -f EL71v45.bin -p "F0B5061C0C1C151C85B068461122??49??????????E0207869466A460009085C307021780134"
+Pattern: 'F0B5061C0C1C151C85B068461122??49??????????E0207869466A460009085C307021780134'
+Found 1 matches:
+  A058BB98: A058BB99 (offset)
+
+Search done in 72 ms
+```
+
+```bash
+$ ptr89 -f EL71v45.bin -p "??2800D0F5E6704780B508F0??E980BD80B5+1" -p "??B589B006A901A80522??????????49051C"
+Pattern: '??2800D0F5E6704780B508F0??E980BD80B5+1'
+Found 1 matches:
+  A0092F93: A0092F93 (offset)
+
+Pattern: '??B589B006A901A80522??????????49051C'
+Found 1 matches:
+  A05C4B38: A05C4B39 (offset)
+
+Search done in 143 ms
+```
+
+### Convert patterns.ini to swilib.vkp
+```
+ptr89 -f EL71v45.bin --from-ini ELKA.ini > swilib.vkp
+```
+
 # Pattern syntax
 
-### Simple byte maks
+Syntax is fully compatible with WinHex, Smelter and Ghidra SRE patterns.
+
+## Simple byte maks
 ```bash
 # Exact match one byte
 B5
@@ -51,7 +82,7 @@ B5
 [1111....]
 ```
 
-### Pattern separators
+## Pattern separators
 You can use spaces or commas to separate different bytes or groups.
 
 All these patterns are equivalent:
@@ -69,7 +100,7 @@ All these patterns are equivalent:
 ??B5??B0??1C??20??43??99??4D??90??94??1C??92??91??68??26??23??21??A2??48??47
 ```
 
-### Offset corrector
+## Offset corrector
 Apply some correction value to the found offset.
 
 Syntax:
@@ -89,7 +120,7 @@ Steps:
 1. Pattern `B801C4E10200A0E30000C1E5B601D4E11040BDE8??????EA` found at 0xA009B780
 2. Result is `0xA009B780 + 0x20 = 0xA009B7A0`
 
-### Decode as pointer
+## Decode as pointer
 Decoding a pointer value from the bytes found by the pattern.
 
 Syntax:
@@ -114,7 +145,7 @@ Steps:
 	```
 3. Result is `0xA8D95BCC + 0x2 = 0xA8D95BCE`
 
-### Decode as reference
+## Decode as reference
 Emulating ARM/THUMB `LDR Rd, [PC, #offset]` instruction found by the pattern.
 
 Syntax:
@@ -143,7 +174,7 @@ Steps:
 
 3. Result is `0xA8E69710 + 0x4 = 0xA8E69714`
 
-### Nested patterns for branches
+## Nested patterns for branches
 Follow the branch and checking it for a pattern.
 
 Syntax:
@@ -221,7 +252,7 @@ Steps:
 	```
 11. Pattern result is `0xA0978822 + 0x1 = 0xA0978823`
 
-### Nested patterns for references
+## Nested patterns for references
 Follow the reference and checking it for a pattern.
 
 Syntax:
@@ -261,7 +292,7 @@ Steps:
  	```
 6. Result is: `0xA0A63270`
 
-### Automatic THUMB bit
+## Automatic THUMB bit
 If the found address points to a THUMB `PUSH { ... }` instruction, +1 will be added to the result.
 
 Example:
@@ -282,7 +313,7 @@ Steps:
 	```
 2. Result is: `0xA058BB98 | 1 = 0xA058BB99`
 
-### Stub value
+## Stub value
 Usually used in `patterns.ini` for stub entries.
 ```bash
 # Pattern result is 0xA8000000
