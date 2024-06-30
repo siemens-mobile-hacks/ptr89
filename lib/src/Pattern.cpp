@@ -401,6 +401,9 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 
 	// Align optimization
 	int align = findAlignForPattern(pattern, memory.align);
+	if (align != 1)
+		firstNonWildcardByte = 0;
+
 	debug("Search align: %d\n", align);
 
 	/*
@@ -449,7 +452,7 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 								i += size;
 								if ((i % align) != 0)
 									i += align - (i % align);
-								i--;
+								i -= align;
 							}
 						} else {
 							debug("FAIL: can't decode result!\n");
@@ -494,7 +497,7 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 							i += size;
 							if ((i % align) != 0)
 								i += align - (i % align);
-							i--;
+							i -= align;
 						}
 					} else {
 						debug("FAIL: can't decode result!\n");
