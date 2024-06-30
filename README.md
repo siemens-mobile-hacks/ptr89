@@ -141,6 +141,29 @@ Syntax:
 [ subPattern ]
 ```
 
+For example:
+```
+?? 1C ?? 48 ?? B5 ?? 68    { ?? 1C ?? 68 ?? 68 ?? 2B ?? D0 ?? 68 [ ?? 23 [ ?? B5 ?? 1C ?? 6E ] ] 47 }    BD + 0x1
+```
+
+Steps:
+1. Pattern `?? 1C ?? 48 ?? B5 ?? 68    ?? ?? ?? ??    BD + 0x1` was found at 0xA0978822
+2. Emulating BL at 0xA097882A (+8)
+```
+A097882A: 9E F0 F6 FD ; BL #0xA0A1741A
+```
+3. Checking pattern `?? 1C ?? 68 ?? 68 ?? 2B ?? D0 ?? 68     ?? ??     47` at 0xA0A1741A
+4. Emulating BL at 0xA0A17426 (+12)
+```
+A0A17426: F6 E7 ; B #0xA0A17416
+```
+5. Checking pattern `?? 23    ?? ??` at 0xA0A1741A
+6. Emulating BL at 0xA0A17418 (+2)
+```
+A0A17418: D7 E7 ; B #0xA0A173CA
+```
+7. Checking pattern `?? B5 ?? 1C ?? 6E` at 0xA0A173CA
+
 ### Nested patterns for references
 Follow the reference and checking it for a pattern.
 
