@@ -163,6 +163,7 @@ A0A17426: F6 E7 ; B #0xA0A17416
 A0A17418: D7 E7 ; B #0xA0A173CA
 ```
 7. Checking pattern `?? B5 ?? 1C ?? 6E` at 0xA0A173CA
+8. Pattern result is `0xA0978822 + 0x1 = 0xA0978823`
 
 ### Nested patterns for references
 Follow the reference and checking it for a pattern.
