@@ -29,6 +29,6 @@ jobs:
         with:
           token: "${{ secrets.GITHUB_TOKEN }}"
           prerelease: true
-          files:
-			- ../*.deb
-			- build-win/ptr89.exe
+          files: |
+            ../*.deb
+            build-win/ptr89.exe
