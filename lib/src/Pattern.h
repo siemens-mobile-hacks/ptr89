@@ -83,9 +83,15 @@ class Pattern {
 		static std::pair<bool, uint32_t> decodeArmBL(uint32_t offset, const uint8_t *bytes);
 		static std::pair<bool, uint32_t> decodeThumbB(uint32_t offset, const uint8_t *bytes);
 		static std::pair<bool, uint32_t> decodeThumbLDR(uint32_t offset, const uint8_t *bytes);
-		static std::pair<bool, uint32_t> decodeArmLDR(uint32_t offset, const uint8_t *bytes);
+		static std::tuple<bool, uint32_t, bool> decodeArmLDR(uint32_t offset, const uint8_t *bytes);
+		static std::pair<bool, uint32_t> decodeArmThrunk(uint32_t offset, const uint8_t *bytes);
 		static std::pair<bool, uint32_t> decodeReference(uint32_t offset, const Memory &memory);
-		static std::pair<bool, uint32_t> decodePointer(uint32_t offset, const Memory &memory);
+		static std::pair<bool, uint32_t> decodePointer(uint32_t addr, const Memory &memory);
+		static uint32_t resolveThrunks(uint32_t addr, const Memory &memory);
+
+		static inline bool inMemory(const Memory &memory, uint32_t addr, uint32_t size = 1) {
+			return addr >= memory.base && addr + size <= memory.base + memory.size;
+		}
 
 		static void setDebugHandler(DebugHandlerFunc debugHandler) {
 			m_debugHandler = debugHandler;
