@@ -231,7 +231,7 @@ Steps:
 	A06A09A4: 7B D6 E7 FA      ; BLX #0xA0096398
 	```
 
-3. Result is `#0xA0096398`
+3. Result is `#0xA0096398 | 1`
 
 ## Nested patterns for branches
 Follow the branch and checking it for a pattern.
