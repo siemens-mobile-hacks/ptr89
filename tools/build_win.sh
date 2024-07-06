@@ -3,8 +3,7 @@ set -e
 set -x
 cd $(dirname $0)/../
 
-[[ -d ./build-win ]] && rm -rf ./build-win
-mkdir build-win
+[[ -d ./build-win ]] || mkdir build-win
 
 cd build-win
 cmake .. -DCMAKE_TOOLCHAIN_FILE=cmake/Toolchain-x86_64-w64-mingw32.cmake

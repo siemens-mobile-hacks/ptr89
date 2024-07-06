@@ -175,6 +175,7 @@ std::string Tokenizer::getTokenName(TokenType type) {
 		case TOK_NULL:				return "NULL";
 		case TOK_INVALID:			return "INVALID";
 		case TOK_REFERENCE:			return "REFERENCE";
+		case TOK_BRANCH_REFERENCE:	return "BRANCH_REFERENCE";
 		case TOK_POINTER:			return "POINTER";
 		case TOK_BLF:				return "BLF";
 		case TOK_LDR:				return "LDR";

@@ -73,7 +73,7 @@ class Pattern {
 
 		struct Memory {
 			uint32_t base;
-			uint8_t *data;
+			const uint8_t *data;
 			size_t size;
 			int align = 1;
 		};

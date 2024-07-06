@@ -308,7 +308,7 @@ int Parser::getTokenInt(const Tokenizer::Token &token) {
 }
 
 uint32_t Parser::getTokenUInt(const Tokenizer::Token &token) {
-	return stol(getTokenStr(token), nullptr, 16);
+	return stoll(getTokenStr(token), nullptr, 16);
 }
 
 std::string Parser::getTokenStr(const Tokenizer::Token &token) {
