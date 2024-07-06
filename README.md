@@ -228,7 +228,7 @@ Steps:
 1. Pattern `?? ?? ?? [1111101.] 00 00 5? E3 ?? ?? 9F 05 08 40 B? 08 ?? ?? ?? 0A 08 80 B? E8` found at 0xA06A09A4
 2. Emulating BL on 0xA06A09A4:
 	```asm
-	A0CC837C: 05 38 CF FA        ; BLX #0xA0096398
+	A06A09A4: 7B D6 E7 FA      ; BLX #0xA0096398
 	```
 
 3. Result is `#0xA0096398`
