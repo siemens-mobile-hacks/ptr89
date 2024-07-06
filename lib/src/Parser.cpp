@@ -15,8 +15,9 @@ std::shared_ptr<PtrExp> Parser::parse(const std::string &input) {
 	skipWhitespaces();
 
 	switch (m_tok.peek().type) {
-		case Tokenizer::TOK_POINTER:	// *( ... )
-		case Tokenizer::TOK_REFERENCE:	// &( ... )
+		case Tokenizer::TOK_POINTER:			// *( ... )
+		case Tokenizer::TOK_REFERENCE:			// &( ... )
+		case Tokenizer::TOK_BRANCH_REFERENCE:	// &BL( ... )
 			parseReferenceOrPointer();
 		break;
 
@@ -68,6 +69,8 @@ void Parser::parseStaticValue() {
 void Parser::parseReferenceOrPointer() {
 	if (m_tok.peek().type == Tokenizer::TOK_POINTER) {
 		m_pattern.type = PATTERN_TYPE_POINTER;
+	} else if (m_tok.peek().type == Tokenizer::TOK_BRANCH_REFERENCE) {
+		m_pattern.type = PATTERN_TYPE_BRANCH_REFERENCE;
 	} else {
 		m_pattern.type = PATTERN_TYPE_REFERENCE;
 	}

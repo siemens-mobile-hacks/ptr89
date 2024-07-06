@@ -13,34 +13,34 @@ static inline uint8_t *I(const std::vector<uint8_t> &value) {
 
 static void testArmDecoder() {
 	// ARM BL #-offset
-	assert(Pattern::decodeArmBL(0xA0001000, I({ 0xFE, 0xFB, 0xFF, 0x0B })) == std::make_pair(true, 0xA0000000));
+	assert(Pattern::decodeArmBL(0xA0001000, I({ 0xFE, 0xFB, 0xFF, 0x0B })) == std::make_tuple(true, 0xA0000000, false));
 
 	// ARM BLX #-offset
-	assert(Pattern::decodeArmBL(0xA0001000, I({ 0xFE, 0xFB, 0xFF, 0xFA })) == std::make_pair(true, 0xA0000000));
+	assert(Pattern::decodeArmBL(0xA0001000, I({ 0xFE, 0xFB, 0xFF, 0xFA })) == std::make_tuple(true, 0xA0000000, true));
 
 	// ARM BL #+offset
-	assert(Pattern::decodeArmBL(0xA0000000, I({ 0xFE, 0x03, 0x00, 0x0B })) == std::make_pair(true, 0xA0001000));
+	assert(Pattern::decodeArmBL(0xA0000000, I({ 0xFE, 0x03, 0x00, 0x0B })) == std::make_tuple(true, 0xA0001000, false));
 
 	// ARM BLX #+offset
-	assert(Pattern::decodeArmBL(0xA0000000, I({ 0xFE, 0x03, 0x00, 0xFA })) == std::make_pair(true, 0xA0001000));
+	assert(Pattern::decodeArmBL(0xA0000000, I({ 0xFE, 0x03, 0x00, 0xFA })) == std::make_tuple(true, 0xA0001000, true));
 
 	// ARM BLX #-offset with H=1
-	assert(Pattern::decodeArmBL(0xA0001000, I({ 0xFE, 0xFB, 0xFF, 0xFB })) == std::make_pair(true, 0xA0000002));
+	assert(Pattern::decodeArmBL(0xA0001000, I({ 0xFE, 0xFB, 0xFF, 0xFB })) == std::make_tuple(true, 0xA0000002, true));
 
 	// ARM BLX #+offset with H=1
-	assert(Pattern::decodeArmBL(0xA0000000, I({ 0xFE, 0x03, 0x00, 0xFB })) == std::make_pair(true, 0xA0001002));
+	assert(Pattern::decodeArmBL(0xA0000000, I({ 0xFE, 0x03, 0x00, 0xFB })) == std::make_tuple(true, 0xA0001002, true));
 
 	// THUMB BL #-offset
-	assert(Pattern::decodeThumbBL(0xA0001000, I({ 0xFE, 0xF7, 0xFE, 0xFF })) == std::make_pair(true, 0xA0000000));
+	assert(Pattern::decodeThumbBL(0xA0001000, I({ 0xFE, 0xF7, 0xFE, 0xFF })) == std::make_tuple(true, 0xA0000000, false));
 
 	// THUMB BLX #-offset
-	assert(Pattern::decodeThumbBL(0xA0001000, I({ 0xFE, 0xF7, 0xFE, 0xEF })) == std::make_pair(true, 0xA0000000));
+	assert(Pattern::decodeThumbBL(0xA0001000, I({ 0xFE, 0xF7, 0xFE, 0xEF })) == std::make_tuple(true, 0xA0000000, true));
 
 	// THUMB BL #+offset
-	assert(Pattern::decodeThumbBL(0xA0000000, I({ 0x00, 0xF0, 0xFE, 0xFF })) == std::make_pair(true, 0xA0001000));
+	assert(Pattern::decodeThumbBL(0xA0000000, I({ 0x00, 0xF0, 0xFE, 0xFF })) == std::make_tuple(true, 0xA0001000, false));
 
 	// THUMB BLX #+offset
-	assert(Pattern::decodeThumbBL(0xA0000000, I({ 0x00, 0xF0, 0xFE, 0xEF })) == std::make_pair(true, 0xA0001000));
+	assert(Pattern::decodeThumbBL(0xA0000000, I({ 0x00, 0xF0, 0xFE, 0xEF })) == std::make_tuple(true, 0xA0001000, true));
 
 	// THUMB B #-offset
 	assert(Pattern::decodeThumbB(0xA0000100, I({ 0x7E, 0xE7 })) == std::make_pair(true, 0xA0000000));

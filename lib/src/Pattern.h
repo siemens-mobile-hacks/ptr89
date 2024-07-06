@@ -13,10 +13,11 @@
 namespace Ptr89 {
 
 enum PatternType {
-	PATTERN_TYPE_OFFSET,		// AB ?? CD ??, return offset of the finded bytes
-	PATTERN_TYPE_POINTER,		// *(AB ?? CD ??), use bytes as pointer
-	PATTERN_TYPE_REFERENCE,		// &(AB ?? CD ??), decode LDR
-	PATTERN_TYPE_STATIC_VALUE,	// < FFFFFFFF >
+	PATTERN_TYPE_OFFSET,			// AB ?? CD ??, return offset of the finded bytes
+	PATTERN_TYPE_POINTER,			// *(AB ?? CD ??), use bytes as pointer
+	PATTERN_TYPE_REFERENCE,			// &(AB ?? CD ??), decode LDR
+	PATTERN_TYPE_BRANCH_REFERENCE,	// &BL(AB ?? CD ??) decode B/BL
+	PATTERN_TYPE_STATIC_VALUE,		// < FFFFFFFF >
 };
 
 enum SubPatternType {
@@ -24,6 +25,12 @@ enum SubPatternType {
 	SUB_PATTERN_TYPE_BRANCH_2B,		// [ AB ?? CD ?? ]
 	SUB_PATTERN_TYPE_LDR_4B,		// LDR{ AB ?? CD ?? }
 	SUB_PATTERN_TYPE_LDR_2B,		// LDR[ AB ?? CD ?? ]
+};
+
+enum XRefType {
+	XREF_TYPE_REFERENCE,
+	XREF_TYPE_BRANCH_CALL,
+	XREF_TYPE_POINTER,
 };
 
 struct PtrExp;
@@ -77,22 +84,30 @@ class Pattern {
 			uint32_t value;
 		};
 
+		struct XRefSearchResult {
+			XRefType type;
+			uint32_t address;
+			uint32_t offset;
+		};
+
 		static std::shared_ptr<PtrExp> parse(const std::string &pattern);
 		static std::string stringify(const std::shared_ptr<PtrExp> &pattern);
 		static int findAlignForPattern(const std::shared_ptr<PtrExp> &pattern, int align);
 		static std::vector<SearchResult> find(const std::shared_ptr<PtrExp> &pattern, const Memory &memory, int maxResults = 0);
+		static std::vector<XRefSearchResult> finXRefs(uint32_t addr, const Memory &memory, int maxResults = 0);
 		static bool checkPattern(const std::shared_ptr<PtrExp> &pattern, size_t offset, const Memory &memory);
-		static std::pair<bool, uint32_t> decodeThumbBL(uint32_t offset, const uint8_t *bytes);
-		static std::pair<bool, uint32_t> decodeArmBL(uint32_t offset, const uint8_t *bytes);
+		static std::tuple<bool, uint32_t, bool> decodeThumbBL(uint32_t offset, const uint8_t *bytes);
+		static std::tuple<bool, uint32_t, bool> decodeArmBL(uint32_t offset, const uint8_t *bytes);
 		static std::pair<bool, uint32_t> decodeThumbB(uint32_t offset, const uint8_t *bytes);
 		static std::pair<bool, uint32_t> decodeThumbLDR(uint32_t offset, const uint8_t *bytes);
 		static std::tuple<bool, uint32_t, bool> decodeArmLDR(uint32_t offset, const uint8_t *bytes);
 		static std::pair<bool, uint32_t> decodeArmThrunk(uint32_t offset, const uint8_t *bytes);
 		static std::pair<bool, uint32_t> decodeReference(uint32_t offset, const Memory &memory);
+		static std::pair<bool, uint32_t> decodeBranchReference(uint32_t offset, const Memory &memory);
 		static std::pair<bool, uint32_t> decodePointer(uint32_t addr, const Memory &memory);
-		static uint32_t resolveThrunks(uint32_t addr, const Memory &memory);
+		static uint32_t resolveThunks(uint32_t addr, const Memory &memory);
 
-		static inline bool inMemory(const Memory &memory, uint32_t addr, uint32_t size = 1) {
+		static inline bool inMemory(const Memory &memory, uint64_t addr, uint64_t size = 1) {
 			return addr >= memory.base && addr + size <= memory.base + memory.size;
 		}
 

@@ -42,9 +42,29 @@ Global options:
 
 Find patterns:
   -p, --pattern STRING     pattern to search
+  -n, --limit NUMBER       limit results count [default 100]
+
+Find xrefs:
+  -x, --xref HEX           address to search
+  -n, --limit NUMBER       limit results count [default 100]
 
 Find patterns from functions.ini:
   --from-ini FILE          path to functions.ini
+
+Prettify pattern:
+  --prettify STRING        pattern
+```
+
+### Find x-refs
+```bash
+$ ptr89 -f EL71sw45.bin -x A04CA048
+Searching x-refs for A04CA048
+Found 3 matches:
+  A0CF63A4 (branch call)
+  A0FC25DC (branch call)
+  A0FC25E0 (pointer)
+
+Search done in 1612 ms
 ```
 
 ### Find patterns
@@ -188,6 +208,30 @@ Steps:
 	```
 
 3. Result is `0xA8E69710 + 0x4 = 0xA8E69714`
+
+## Decode as BL address
+Emulating ARM/THUMB `B/BL/BLX` or `LDR PC, [PC, #offset]` instructions found by the pattern.
+
+Syntax:
+```bash
+&BL( subPattern )
+&BL( subPattern ) + valueCorrector
+&BL( subPattern ) - valueCorrector
+```
+
+For example:
+```bash
+&BL( ?? ?? ?? [1111101.] 00 00 5? E3 ?? ?? 9F 05 08 40 B? 08 ?? ?? ?? 0A 08 80 B? E8 )
+```
+
+Steps:
+1. Pattern `?? ?? ?? [1111101.] 00 00 5? E3 ?? ?? 9F 05 08 40 B? 08 ?? ?? ?? 0A 08 80 B? E8` found at 0xA06A09A4
+2. Emulating BL on 0xA06A09A4:
+	```asm
+	A0CC837C: 05 38 CF FA        ; BLX #0xA0096398
+	```
+
+3. Result is `#0xA0096398`
 
 ## Nested patterns for branches
 Follow the branch and checking it for a pattern.

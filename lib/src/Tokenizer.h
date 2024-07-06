@@ -11,6 +11,7 @@ class Tokenizer {
 			TOK_NULL,
 			TOK_INVALID,
 			TOK_REFERENCE,
+			TOK_BRANCH_REFERENCE,
 			TOK_POINTER,
 			TOK_BLF,
 			TOK_LDR,

@@ -1,4 +1,5 @@
 #include "main.h"
+#include "src/Pattern.h"
 #include <cstddef>
 #include <cstdint>
 
@@ -21,7 +22,17 @@ int main(int argc, char *argv[]) {
 		.append()
 		.default_value("")
 		.nargs(1);
+	program.add_argument("-x", "--xrefs")
+		.append()
+		.default_value("")
+		.nargs(1);
+	program.add_argument("-n", "--limit")
+		.default_value(100)
+		.nargs(1);
 	program.add_argument("--from-ini")
+		.default_value("")
+		.nargs(1);
+	program.add_argument("--prettify")
 		.default_value("")
 		.nargs(1);
 	program.add_argument("-V", "--verbose")
@@ -50,9 +61,18 @@ int main(int argc, char *argv[]) {
 		std::cerr << "\n";
 		std::cerr << "Find patterns:\n";
 		std::cerr << "  -p, --pattern STRING     pattern to search\n";
+		std::cerr << "  -n, --limit NUMBER       limit results count [default 100]\n";
+		std::cerr << "\n";
+		std::cerr << "Find xrefs:\n";
+		std::cerr << "  -x, --xref HEX           address to search\n";
+		std::cerr << "  -n, --limit NUMBER       limit results count [default 100]\n";
 		std::cerr << "\n";
 		std::cerr << "Find patterns from functions.ini:\n";
 		std::cerr << "  --from-ini FILE          path to functions.ini\n";
+		std::cerr << "\n";
+		std::cerr << "Prettify pattern:\n";
+		std::cerr << "  --prettify STRING        pattern\n";
+		std::cerr << "\n";
 	};
 
 	try {
@@ -83,13 +103,15 @@ int main(int argc, char *argv[]) {
 	json j;
 
 	if (program.is_used("--pattern")) {
+		uint32_t limit = program.get<int>("--limit");
+
 		auto patterns = program.get<std::vector<std::string>>("--pattern");
 		j["patterns"] = json::array();
 
 		auto start = duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 		for (auto &patternStr: patterns) {
 			auto pattern = Pattern::parse(patternStr);
-			auto results = Pattern::find(pattern, memoryRegion);
+			auto results = Pattern::find(pattern, memoryRegion, limit);
 			if (asJSON) {
 				json patternJson;
 				patternJson["pattern"] = patternStr;
@@ -106,6 +128,8 @@ int main(int argc, char *argv[]) {
 						item["type"] = "pointer";
 					} else if (pattern->type == PATTERN_TYPE_REFERENCE) {
 						item["type"] = "reference";
+					} else if (pattern->type == PATTERN_TYPE_BRANCH_REFERENCE) {
+						item["type"] = "branch";
 					} else if (pattern->type == PATTERN_TYPE_STATIC_VALUE) {
 						item["type"] = "static_value";
 					}
@@ -123,12 +147,57 @@ int main(int argc, char *argv[]) {
 						printf("  %08X: %08X (pointer)\n", result.address, result.value);
 					} else if (pattern->type == PATTERN_TYPE_REFERENCE) {
 						printf("  %08X: %08X (reference)\n", result.address, result.value);
+					} else if (pattern->type == PATTERN_TYPE_BRANCH_REFERENCE) {
+						printf("  %08X: %08X (branch)\n", result.address, result.value);
 					} else if (pattern->type == PATTERN_TYPE_STATIC_VALUE) {
 						printf("  %08X (static value)\n", result.value);
 					}
 				}
 				printf("\n");
 			}
+		}
+		auto end = duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+		j["elapsed"] = end - start;
+
+		if (!asJSON) {
+			printf("Search done in %ld ms\n", end - start);
+		}
+	} else if (program.is_used("--xrefs")) {
+		uint32_t addr = stol(program.get<std::string>("--xrefs"), NULL, 16);
+		uint32_t limit = program.get<int>("--limit");
+
+		j["results"] = json::array();
+		auto start = duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+		auto results = Pattern::finXRefs(addr, memoryRegion, limit);
+		if (asJSON) {
+			for (auto &result: results) {
+				json item;
+				item["address"] = result.address;
+				item["offset"] = result.offset;
+
+				if (result.type == XREF_TYPE_REFERENCE) {
+					item["type"] = "reference";
+				} else if (result.type == XREF_TYPE_BRANCH_CALL) {
+					item["type"] = "branch";
+				} else if (result.type == XREF_TYPE_POINTER) {
+					item["type"] = "pointer";
+				}
+
+				j["results"].push_back(item);
+			}
+		} else {
+			printf("Searching x-refs for %08X\n", addr);
+			printf("Found %ld matches:\n", results.size());
+			for (auto &result: results) {
+				if (result.type == XREF_TYPE_REFERENCE) {
+					printf("  %08X (reference)\n", result.address);
+				} else if (result.type == XREF_TYPE_BRANCH_CALL) {
+					printf("  %08X (branch call)\n", result.address);
+				} else if (result.type == XREF_TYPE_POINTER) {
+					printf("  %08X (pointer)\n", result.address);
+				}
+			}
+			printf("\n");
 		}
 		auto end = duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 		j["elapsed"] = end - start;
@@ -164,6 +233,8 @@ int main(int argc, char *argv[]) {
 						item["type"] = "pointer";
 					} else if (pattern->type == PATTERN_TYPE_REFERENCE) {
 						item["type"] = "reference";
+					} else if (pattern->type == PATTERN_TYPE_BRANCH_REFERENCE) {
+						item["type"] = "branch";
 					} else if (pattern->type == PATTERN_TYPE_STATIC_VALUE) {
 						item["type"] = "static_value";
 					}
@@ -185,6 +256,13 @@ int main(int argc, char *argv[]) {
 		}
 		auto end = duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 		j["elapsed"] = end - start;
+	} else if (program.is_used("--prettify")) {
+		auto patternStr = program.get<std::string>("--prettify");
+		if (asJSON) {
+			j["pattern"] = Pattern::stringify(Pattern::parse(patternStr));
+		} else {
+			printf("Pattern: %s\n", Pattern::stringify(Pattern::parse(patternStr)).c_str());
+		}
 	}
 
 	if (asJSON) {

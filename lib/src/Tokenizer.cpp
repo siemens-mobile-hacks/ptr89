@@ -61,6 +61,21 @@ Tokenizer::Token Tokenizer::parseToken() {
 		}
 	}
 
+	if (m_input[m_offset] == '_' && strcasecmp(m_input.substr(m_offset, 4).c_str(), "_blf") == 0) {
+		m_offset += 4;
+		return { TOK_BLF, start, m_offset };
+	}
+
+	if (tolower(m_input[m_offset]) == 'l' && strcasecmp(m_input.substr(m_offset, 3).c_str(), "ldr") == 0) {
+		m_offset += 3;
+		return { TOK_LDR, start, m_offset };
+	}
+
+	if (tolower(m_input[m_offset]) == '&' && strcasecmp(m_input.substr(m_offset, 3).c_str(), "&bl") == 0) {
+		m_offset += 3;
+		return { TOK_BRANCH_REFERENCE, start, m_offset };
+	}
+
 	switch (m_input[m_offset]) {
 		case '&':
 			m_offset++;
@@ -138,16 +153,6 @@ Tokenizer::Token Tokenizer::parseToken() {
 		}
 
 		return { (isMask ? TOK_MASK : TOK_HEX), start, m_offset };
-	}
-
-	if (m_input[m_offset] == '_' && strcasecmp(m_input.substr(m_offset, 4).c_str(), "_blf") == 0) {
-		m_offset += 4;
-		return { TOK_BLF, start, m_offset };
-	}
-
-	if (tolower(m_input[m_offset]) == 'l' && strcasecmp(m_input.substr(m_offset, 3).c_str(), "ldr") == 0) {
-		m_offset += 3;
-		return { TOK_LDR, start, m_offset };
 	}
 
 	if (m_input[m_offset] == '%') {
