@@ -6,6 +6,7 @@ License: MIT
 Source0: %{name}-%version.tar
 URL: https://github.com/siemens-mobile-hacks/ptr89
 BuildRequires: gcc
+BuildRequires: gcc-c++
 BuildRequires: git
 BuildRequires: cmake
 
