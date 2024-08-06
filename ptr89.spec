@@ -3,7 +3,7 @@ Version: 1.0
 Release: %autorelease
 Summary: Yet another binary pattern finder.
 License: MIT
-Source0: ptr89-%{version}.tar.xz
+Source0: ptr89-%{version}.tar
 URL: https://github.com/siemens-mobile-hacks/ptr89
 BuildRequires: gcc
 BuildRequires: git
