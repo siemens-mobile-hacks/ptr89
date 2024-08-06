@@ -1,9 +1,10 @@
-Name:     ptr89
-Version:    {{{ git_dir_version }}}
-Release:  %autorelease
-Summary:  Yet another binary pattern finder.
-License:  MIT
-URL:      https://github.com/siemens-mobile-hacks/ptr89
+Name: ptr89
+Version: 1.0
+Release: %autorelease
+Summary: Yet another binary pattern finder.
+License: MIT
+Source0: ptr89-%{version}.tar.xz
+URL: https://github.com/siemens-mobile-hacks/ptr89
 BuildRequires: gcc
 BuildRequires: git
 BuildRequires: cmake
