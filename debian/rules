@@ -1,3 +1,20 @@
 #!/usr/bin/make -f
+
+# Include distribution check logic
+OS = $(shell lsb_release -is)
+VERSION_ID = $(shell lsb_release -rs)
+
+# Default compilers
+CC = gcc
+CXX = g++
+
+# Conditionally set compilers for Ubuntu 22.04
+ifneq (,$(findstring Ubuntu,$(OS)))
+    ifneq (,$(findstring 22.04,$(VERSION_ID)))
+        export CC = gcc-12
+        export CXX = g++-12
+    endif
+endif
+
 %:
 	dh $@ --buildsystem=cmake
