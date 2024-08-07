@@ -28,7 +28,7 @@ if (BUILD_WASM)
 else()
 	add_executable(ptr89 src/main.cpp ${LIB_SRC})
 	target_precompile_headers(ptr89 PRIVATE <argparse/argparse.hpp> <nlohmann/json.hpp> <string> <vector> <memory> <regex> <map> <tuple> <stdexcept>)
-	target_link_options(ptr89 PUBLIC -static)
+#	target_link_options(ptr89 PUBLIC -static)
 	target_compile_options(ptr89 PUBLIC -O3)
 	install(TARGETS ptr89 DESTINATION /usr/bin)
 
