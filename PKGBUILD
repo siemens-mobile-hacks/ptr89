@@ -8,7 +8,7 @@ url='https://github.com/siemens-mobile-hacks/ptr89'
 license=(MIT)
 depends=()
 makedepends=()
-source=(git+https://github.com/siemens-mobile-hacks/ptr89)
+source=($pkgname-$pkgver.tar.xz)
 sha256sums=('SKIP')
 
 prepare() {
