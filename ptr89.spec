@@ -1,4 +1,6 @@
 %global debug_package %{nil}
+%define _unpackaged_files_terminate_build 0
+
 Name: ptr89
 Version: 1.0
 Release: 0
@@ -30,7 +32,6 @@ Yet another binary pattern finder.
 
 %files
 /usr/bin/ptr89
-/usr/lib/debug/usr/bin/ptr89.debug
 %license LICENSE
 %doc README.md
 
