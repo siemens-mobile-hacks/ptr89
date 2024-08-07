@@ -26,3 +26,7 @@ Yet another binary pattern finder.
 
 %check
 %ctest
+
+%files
+%{_bindir}/ptr89
+%{_libdir}/debug%{_bindir}/ptr89.debug
