@@ -1,9 +1,10 @@
-Format: 3.0 (native)
+Format: 1.0
 Source: ptr89
-Binary: ptr89
-Architecture: all
 Version: 1.0
+Binary: ptr89
 Maintainer: Kirill Zhumarin <kirill.zhumarin@gmail.com>
 Homepage: https://github.com/siemens-mobile-hacks/ptr89
+Architecture: any
 Standards-Version: 3.9.3
-Build-Depends: debhelper (>= 8.0.0)
+Build-Depends: debhelper (>= 4.0.0)
+DEBTRANSFORM-RELEASE: 1
