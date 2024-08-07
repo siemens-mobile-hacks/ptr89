@@ -12,22 +12,22 @@ source=($pkgname-$pkgver.tar.gz)
 sha256sums=('SKIP')
 
 prepare() {
-	cd $pkgname
+	cd $pkgname-$pkgver
 	git submodule init
 	git submodule update
 }
 
 build() {
-	cmake -B build -S $pkgname
+	cmake -B build -S $pkgname-$pkgver
 	cmake --build build
 }
 
 package() {
-	cd $pkgname
+	cd $pkgname-$pkgver
 	make install
 }
 
 pkgver() {
-	cd $pkgname
+	cd $pkgname-$pkgver
 	git describe --long --tags --abbrev=7 | sed 's/\([^-]*-g\)/r\1/;s/-/./g'
 }
