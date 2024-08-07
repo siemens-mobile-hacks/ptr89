@@ -1,7 +1,8 @@
+%global debug_package %{nil}
 Name: ptr89
 Version: 1.0
 Release: 0
-Summary: Yet another binary pattern finder.
+Summary: Yet another binary pattern finder
 License: MIT
 Source0: %{name}-%version.tar
 URL: https://github.com/siemens-mobile-hacks/ptr89
@@ -30,3 +31,7 @@ Yet another binary pattern finder.
 %files
 /usr/bin/ptr89
 /usr/lib/debug/usr/bin/ptr89.debug
+%license LICENSE
+%doc README.md
+
+%changelog
