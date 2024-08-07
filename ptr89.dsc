@@ -7,6 +7,3 @@ Homepage: https://github.com/siemens-mobile-hacks/ptr89
 Architecture: any
 Standards-Version: 3.9.3
 Build-Depends: debhelper (>= 4.0.0)
-Debtransform-Tar: ptr89-1.0.1.tar
-Files:
- 00000000000000000000000000000000 0 ptr89-1.0.1.tar
