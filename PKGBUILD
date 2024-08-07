@@ -7,7 +7,7 @@ arch=(any)
 url='https://github.com/siemens-mobile-hacks/ptr89'
 license=(MIT)
 depends=()
-makedepends=()
+makedepends=(cmake)
 source=($pkgname-$pkgver.tar.gz)
 sha256sums=('SKIP')
 
