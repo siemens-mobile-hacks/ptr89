@@ -13,6 +13,10 @@ BuildRequires: gcc-c++
 BuildRequires: git
 BuildRequires: cmake
 
+%if 0%{?fedora_version} || 0%{?rhel_version} || 0%{?centos_version}
+BuildRequires: glibc-langpack-en
+%endif
+
 %description
 Yet another binary pattern finder.
 
