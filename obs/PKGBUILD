@@ -17,6 +17,6 @@ build() {
 }
 
 package() {
-	cd $pkgname-$pkgver
+	cd $pkgname-$pkgver/build
 	make install
 }
