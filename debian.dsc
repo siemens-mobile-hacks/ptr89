@@ -1,6 +1,6 @@
-Format: 1.0
+Format: 1.0.0
 Source: ptr89
-Version: 1.0
+Version: 1.0.0
 Binary: ptr89
 Maintainer: Kirill Zhumarin <kirill.zhumarin@gmail.com>
 Homepage: https://github.com/siemens-mobile-hacks/ptr89
