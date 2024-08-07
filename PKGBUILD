@@ -11,12 +11,6 @@ makedepends=()
 source=($pkgname-$pkgver.tar.gz)
 sha256sums=('SKIP')
 
-prepare() {
-	cd $pkgname-$pkgver
-	git submodule init
-	git submodule update
-}
-
 build() {
 	cmake -B build -S $pkgname-$pkgver
 	cmake --build build
@@ -25,9 +19,4 @@ build() {
 package() {
 	cd $pkgname-$pkgver
 	make install
-}
-
-pkgver() {
-	cd $pkgname-$pkgver
-	git describe --long --tags --abbrev=7 | sed 's/\([^-]*-g\)/r\1/;s/-/./g'
 }
