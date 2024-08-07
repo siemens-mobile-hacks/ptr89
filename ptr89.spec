@@ -28,5 +28,5 @@ Yet another binary pattern finder.
 %ctest
 
 %files
-%{_bindir}/ptr89
-%{_libdir}/debug%{_bindir}/ptr89.debug
+/usr/bin/ptr89
+/usr/lib/debug/usr/bin/ptr89.debug
