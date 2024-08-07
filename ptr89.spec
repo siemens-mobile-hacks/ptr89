@@ -15,7 +15,7 @@ BuildRequires: cmake
 BuildRequires: glibc-devel
 
 %if 0%{?fedora} || 0%{?rhel_version} || 0%{?centos_version}
-  Presef: glibc-all-langpacks
+  Prefer: glibc-all-langpacks
 %endif
 
 %description
