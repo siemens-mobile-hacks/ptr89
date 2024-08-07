@@ -17,6 +17,5 @@ build() {
 }
 
 package() {
-	cd build
-	make install
+	DESTDIR="$pkgdir" cmake --install build
 }
