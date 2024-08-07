@@ -6,5 +6,4 @@ Maintainer: Kirill Zhumarin <kirill.zhumarin@gmail.com>
 Homepage: https://github.com/siemens-mobile-hacks/ptr89
 Architecture: any
 Standards-Version: 3.9.3
-Build-Depends: debhelper (>= 4.0.0), cmake, quilt, gcc-12 | gcc
-Prefer: bzr
+Build-Depends: debhelper (>= 4.0.0), cmake, quilt, gcc-12 | gcc, lsb-core
