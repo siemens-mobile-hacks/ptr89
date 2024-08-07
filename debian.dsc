@@ -1,4 +1,4 @@
-Format: 1.0.0
+Format: 1
 Source: ptr89
 Version: 1.0.0
 Binary: ptr89
