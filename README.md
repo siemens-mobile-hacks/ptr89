@@ -1,5 +1,7 @@
 # Ptr89
 
+[![build result](https://build.opensuse.org/projects/home:Zhumarin/packages/ptr89/badge.svg?type=default)](https://build.opensuse.org/package/show/home:Zhumarin/ptr89)
+
 There is yet another ARM/THUMB pattern finder.
 
 Main features:
@@ -15,12 +17,14 @@ The name was chosen in respect to [Viktor89](https://patches.kibab.com/user.php5
 
 # DOWNLOAD
 - Windows: download .exe in [Releases](https://github.com/siemens-mobile-hacks/ptr89/releases).
-- Ubuntu/Debian: download .deb in [Releases](https://github.com/siemens-mobile-hacks/ptr89/releases).
+- ArchLinux: `yay -S ptr89-git`
+- [Ubuntu/Debian/Fedora/OpenSUSE repository](https://software.opensuse.org//download.html?project=home%3AZhumarin&package=ptr89)
+- Old Ubuntu/Debian: download .deb in [Releases](https://github.com/siemens-mobile-hacks/ptr89/releases).
 - Build from sources:
 	```bash
 	# Ubuntu/Debian
 	fakeroot debian/rules binary
-	
+ 
 	# OSX/Linux/Unix
 	mkdir build
 	cd build
