@@ -9,7 +9,7 @@ BuildRequires: gcc
 BuildRequires: gcc-c++
 BuildRequires: git
 BuildRequires: cmake
-BuildRequires: libc-devel
+BuildRequires: glibc-devel
 
 %description
 Yet another binary pattern finder.
