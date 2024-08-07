@@ -1,0 +1,15 @@
+Source: ptr89
+Section: kernel
+Priority: optional
+Maintainer: Kirill Zhumarin <kirill.zhumarin@gmail.com>
+Rules-Requires-Root: no
+Build-Depends:
+ debhelper-compat (= 12),
+ cmake,
+ quilt
+Standards-Version: 4.5.0
+
+Package: ptr89
+Architecture: any
+Depends:
+Description: There is yet another ARM/THUMB pattern finder.
