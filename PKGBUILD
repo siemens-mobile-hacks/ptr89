@@ -1,5 +1,5 @@
 # Maintainer: Kirill Zhumarin <kirill.zhumarin@gmail.com>
-pkgname=ptr89-git
+pkgname=ptr89
 pkgver=v1.0.2
 pkgrel=1
 pkgdesc='Yet another binary pattern finder.'
@@ -12,22 +12,22 @@ source=($pkgname-$pkgver.tar.gz)
 sha256sums=('SKIP')
 
 prepare() {
-	cd "ptr89"
+	cd $pkgname
 	git submodule init
 	git submodule update
 }
 
 build() {
-	cmake -B build -S ptr89
+	cmake -B build -S $pkgname
 	cmake --build build
 }
 
 package() {
-	cd "ptr89"
+	cd $pkgname
 	make install
 }
 
 pkgver() {
-	cd "ptr89"
+	cd $pkgname
 	git describe --long --tags --abbrev=7 | sed 's/\([^-]*-g\)/r\1/;s/-/./g'
 }
