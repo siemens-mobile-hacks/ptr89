@@ -22,12 +22,9 @@ jobs:
 
       - name: Building ptr89
         run: |
-          fakeroot debian/rules binary
-          fakeroot debian/rules clean
-          cmake -B build -DBUILD_STATIC:BOOL=TRUE -DCMAKE_BUILD_TYPE=Release
-          cmake --build build -j$(nproc)
-          cd build
-          tar -cpvzf ptr89.tar.gz ./ptr89
+          tools/build_deb.sh
+          tools/build_win.sh
+          tools/build_tar.sh
 
       - uses: softprops/action-gh-release@v1
         with:
@@ -35,7 +32,8 @@ jobs:
           prerelease: true
           files: |
             ../*.deb
-            build/ptr89.tar.gz
+            build/*.tar.gz
+            build-win/*.exe
 
       - name: Check out homebrew tap
         uses: actions/checkout@v3
@@ -58,21 +56,3 @@ jobs:
           git add Formula/ptr89.rb
           git commit -m "ptr89: $GITHUB_REF_NAME"
           git push --set-upstream origin main
-
-  build-windows:
-    runs-on: windows-2019
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          submodules: true
-
-      - name: Building ptr89
-        run: |
-          cmake -B build
-          cmake --build build --config Release
-
-      - uses: softprops/action-gh-release@v1
-        with:
-          token: "${{ secrets.GITHUB_TOKEN }}"
-          files: |
-            build/Release/ptr89.exe
