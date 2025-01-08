@@ -34,7 +34,7 @@ bool Tokenizer::isBinPattern(char c) {
 Tokenizer::Token Tokenizer::parseToken() {
 	auto start = m_offset;
 
-	if (m_offset == m_input.size()) {
+	if (m_offset == (int) m_input.size()) {
 		return { TOK_EOF, m_offset, m_offset };
 	}
 

@@ -130,7 +130,7 @@ void Parser::parseHexMask() {
 	if (value.size() % 2 != 0)
 		throw PatternError(this, "The hex number length must be even");
 
-	for (int i = 0; i < value.size(); i += 2) {
+	for (size_t i = 0; i < value.size(); i += 2) {
 		uint16_t mask = 0;
 		uint16_t byte = 0;
 

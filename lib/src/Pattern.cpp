@@ -3,10 +3,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <regex>
 #include <stdexcept>
 #include <cstdarg>
 #include <string>
+#include <inttypes.h>
 
 #include "utils.h"
 
@@ -60,9 +60,9 @@ bool Pattern::fuzzyMatch(const uint8_t *bytes, const uint8_t *masks, int pattern
 bool Pattern::checkPattern(const std::shared_ptr<PtrExp> &pattern, size_t offset, const Memory &memory) {
 	debugSectionBegin();
 	if (m_debugHandler) {
-		debug("Checking pattern: '%s' at %08lX\n", stringify(pattern).c_str(), memory.base + offset);
+		debug("Checking pattern: '%s' at %08" PRIu64 "X\n", stringify(pattern).c_str(), memory.base + offset);
 		if (m_debugLevel == 0)
-			debug("Memory: %08X %08lX\n", memory.base, memory.size);
+			debug("Memory: %08X %08" PRIu64 "X\n", memory.base, memory.size);
 	}
 
 	if (pattern->type == PATTERN_TYPE_STATIC_VALUE) {
@@ -78,7 +78,7 @@ bool Pattern::checkPattern(const std::shared_ptr<PtrExp> &pattern, size_t offset
 
 	if (offset + patternSize >= memory.size) {
 		if (m_debugHandler)
-			debug("FAIL: Address %08lX is out of range.\n", memory.base + offset);
+			debug("FAIL: Address %08" PRIu64 "X is out of range.\n", memory.base + offset);
 		debugSectionEnd();
 		return false;
 	}
@@ -116,7 +116,7 @@ bool Pattern::checkSubpatterns(const std::shared_ptr<PtrExp> &pattern, size_t of
 			case SUB_PATTERN_TYPE_BRANCH_2B:
 			{
 				if (m_debugHandler)
-					debug("Decoding THUMB B at %08lX\n", memory.base + offset + p.offset);
+					debug("Decoding THUMB B at %08" PRIu64 "X\n", memory.base + offset + p.offset);
 
 				auto [isThumb, thumbAddr] = decodeThumbB(memory.base + offset + p.offset, memory.data + offset + p.offset);
 				if (isThumb && inMemory(memory, thumbAddr, 4)) {
@@ -135,7 +135,7 @@ bool Pattern::checkSubpatterns(const std::shared_ptr<PtrExp> &pattern, size_t of
 			case SUB_PATTERN_TYPE_BRANCH_4B:
 			{
 				if (m_debugHandler)
-					debug("Try decoding THUMB BL/BLX at %08lX\n", memory.base + offset + p.offset);
+					debug("Try decoding THUMB BL/BLX at %08" PRIu64 "X\n", memory.base + offset + p.offset);
 
 				auto [isThumb, thumbAddr, isThumbBLX] = decodeThumbBL(memory.base + offset + p.offset, memory.data + offset + p.offset);
 				if (isThumb && inMemory(memory, thumbAddr, 4)) {
@@ -151,7 +151,7 @@ bool Pattern::checkSubpatterns(const std::shared_ptr<PtrExp> &pattern, size_t of
 				}
 
 				if (m_debugHandler)
-					debug("Try decoding ARM B/BL/BLX at %08lX\n", memory.base + offset + p.offset);
+					debug("Try decoding ARM B/BL/BLX at %08" PRIu64 "X\n", memory.base + offset + p.offset);
 
 				auto [isArm, armAddr, isArmBLX] = decodeArmBL(memory.base + offset + p.offset, memory.data + offset + p.offset);
 				if (isArm && inMemory(memory, armAddr, 4)) {
@@ -167,7 +167,7 @@ bool Pattern::checkSubpatterns(const std::shared_ptr<PtrExp> &pattern, size_t of
 				}
 
 				if (m_debugHandler)
-					debug("Try decoding ARM THRUNK at %08lX\n", memory.base + offset + p.offset);
+					debug("Try decoding ARM THRUNK at %08" PRIu64 "X\n", memory.base + offset + p.offset);
 
 				auto [isArmLdr, armLDR, isThunk] = decodeArmLDR(memory.base + offset + p.offset, memory.data + offset + p.offset);
 				if (isArmLdr && isThunk) {
@@ -193,7 +193,7 @@ bool Pattern::checkSubpatterns(const std::shared_ptr<PtrExp> &pattern, size_t of
 			case SUB_PATTERN_TYPE_LDR_2B:
 			{
 				if (m_debugHandler)
-					debug("Try decoding THUMB LDR at %08lX\n", memory.base + offset + p.offset);
+					debug("Try decoding THUMB LDR at %08" PRIu64 "X\n", memory.base + offset + p.offset);
 
 				auto [isThumbLdr, thumbLdrAddr] = decodeThumbLDR(memory.base + offset + p.offset, memory.data + offset + p.offset);
 				if (isThumbLdr) {
@@ -218,7 +218,7 @@ bool Pattern::checkSubpatterns(const std::shared_ptr<PtrExp> &pattern, size_t of
 			case SUB_PATTERN_TYPE_LDR_4B:
 			{
 				if (m_debugHandler)
-					debug("Try decoding ARM LDR at %08lX\n", memory.base + offset + p.offset);
+					debug("Try decoding ARM LDR at %08" PRIu64 "X\n", memory.base + offset + p.offset);
 
 				auto [isArmLdr, armLdrAddr, isArmThrunk] = decodeArmLDR(memory.base + offset + p.offset, memory.data + offset + p.offset);
 				if (isArmLdr) {
@@ -425,7 +425,7 @@ int Pattern::findAlignForPattern(const std::shared_ptr<PtrExp> &pattern, int ali
 	return align;
 }
 
-std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &pattern, const Memory &memory, int maxResults) {
+std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &pattern, const Memory &memory, size_t maxResults) {
 	int firstNonWildcardByte = 0;
 	bool isTrulyWildcard = true;
 	int patternSize = pattern->bytes.size();
@@ -434,7 +434,7 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 
 	if (m_debugHandler) {
 		debug("Searching pattern: %s\n", stringify(pattern).c_str());
-		debug("Memory: %08X %08lX\n", memory.base, memory.size);
+		debug("Memory: %08X %08" PRIu64 "X\n", memory.base, memory.size);
 		debug("\n");
 	}
 
@@ -489,7 +489,7 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 					size_t foundOffset = i - firstNonWildcardByte;
 
 					if (m_debugHandler)
-						debug("Possible result at %08lX\n", memory.base + foundOffset);
+						debug("Possible result at %08" PRIu64 "X\n", memory.base + foundOffset);
 
 					if (checkSubpatterns(pattern, foundOffset, memory)) {
 						auto [isDecoded, result] = decodeResult(pattern, foundOffset + pattern->inputOffset, memory);
@@ -535,7 +535,7 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 			if (fuzzyMatch(bytes, masks, size, memory.data + i)) {
 				size_t foundOffset = i - firstNonWildcardByte;
 				if (m_debugHandler)
-					debug("Possible result at %08lX\n", memory.base + foundOffset);
+					debug("Possible result at %08" PRIu64 "X\n", memory.base + foundOffset);
 				if (checkSubpatterns(pattern, foundOffset, memory)) {
 					auto [isDecoded, result] = decodeResult(pattern, foundOffset + pattern->inputOffset, memory);
 					if (isDecoded) {
@@ -576,7 +576,7 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 	return searchResults;
 }
 
-std::vector<Pattern::XRefSearchResult> Pattern::finXRefs(uint32_t addr, const Memory &memory, int maxResults) {
+std::vector<Pattern::XRefSearchResult> Pattern::finXRefs(uint32_t addr, const Memory &memory, size_t maxResults) {
 	debug("Searching XRef's for %08X\n", addr);
 	std::vector<XRefSearchResult> searchResults;
 	for (size_t i = 0; i < memory.size; i += 2) {
@@ -584,14 +584,19 @@ std::vector<Pattern::XRefSearchResult> Pattern::finXRefs(uint32_t addr, const Me
 		auto [isBranchReference, branchAddr] = decodeBranchReference(i, memory);
 		auto [isPointer, ptrAddr] = decodePointer(i + memory.base, memory);
 		if (isBranchReference && (branchAddr & ~1) == (addr & ~1)) {
-			debug("FOUND: branch call at %08lX\n", i + memory.base);
+			debug("FOUND: branch call at %08" PRIu64 "X\n", i + memory.base);
 			searchResults.push_back({ XREF_TYPE_BRANCH_CALL, static_cast<uint32_t>(memory.base + i), static_cast<uint32_t>(i) });
 		} else if (isReference && (refAddr & ~1) == (addr & ~1)) {
-			debug("FOUND: reference at %08lX\n", i + memory.base);
+			debug("FOUND: reference at %08" PRIu64 "X\n", i + memory.base);
 			searchResults.push_back({ XREF_TYPE_REFERENCE, static_cast<uint32_t>(memory.base + i), static_cast<uint32_t>(i) });
 		} else if (isPointer && (ptrAddr & ~1) == (addr & ~1)) {
-			debug("FOUND: pointer at %08lX\n", i + memory.base);
+			debug("FOUND: pointer at %08" PRIu64 "X\n", i + memory.base);
 			searchResults.push_back({ XREF_TYPE_POINTER, static_cast<uint32_t>(memory.base + i), static_cast<uint32_t>(i) });
+		}
+
+		if (maxResults && searchResults.size() >= maxResults) {
+			debug("Maximum search results are reached.\n");
+			break;
 		}
 	}
 	return searchResults;
@@ -742,7 +747,6 @@ std::pair<bool, uint32_t> Pattern::decodeThumbB(uint32_t offset, const uint8_t *
 
 std::pair<bool, uint32_t> Pattern::decodeThumbLDR(uint32_t offset, const uint8_t *bytes) {
 	uint16_t instr1 = (bytes[1] << 8) | bytes[0];
-	uint16_t instr2 = (bytes[3] << 8) | bytes[2];
 
 	if ((offset % 2) != 0)
 		return { false, 0 };

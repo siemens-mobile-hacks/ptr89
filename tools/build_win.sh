@@ -5,8 +5,7 @@ cd $(dirname $0)/../
 
 [[ -d ./build-win ]] || mkdir build-win
 
-cd build-win
-cmake .. -DCMAKE_TOOLCHAIN_FILE=cmake/Toolchain-x86_64-w64-mingw32.cmake
-make -j$(nproc)
+cmake -B build-win -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=cmake/Toolchain-x86_64-w64-mingw32.cmake -DBUILD_STATIC:BOOL=TRUE
+cmake --build build-win -- -j$(nproc)
 
-ls -lah ptr89.exe
+ls -lah build-win/ptr89.exe

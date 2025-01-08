@@ -1,5 +1,6 @@
 #include "utils.h"
 
+#include <cstddef>
 #include <cstring>
 #include <cstdarg>
 #include <stdexcept>
@@ -9,7 +10,7 @@ namespace Ptr89 {
 std::pair<int, int> getLocByOffset(const std::string &text, int offset) {
 	int line = 1;
 	int col = 1;
-	for (int i = 0; i < text.size(); i++) {
+	for (int i = 0; i < std::ssize(text); i++) {
 		if (text[i] == '\n') {
 			line++;
 			col = 1;
@@ -46,14 +47,14 @@ std::string codeFrame(const std::string &text, int lineNum, int colNum) {
 
 std::string padStart(const std::string &line, int maxLength, char c) {
 	std::string newStr = line;
-	while (newStr.size() < maxLength)
+	while (std::ssize(newStr) < maxLength)
 		newStr = c + newStr;
 	return newStr;
 }
 
 std::string str2spaces(const std::string &line) {
 	std::string newStr = "";
-	for (int i = 0; i < line.size(); i++) {
+	for (size_t i = 0; i < line.size(); i++) {
 		newStr += ' ';
 	}
 	return newStr;
@@ -62,7 +63,7 @@ std::string str2spaces(const std::string &line) {
 std::string tab2spaces(const std::string &line) {
 	std::string newStr = "";
 	int virtualSymbols = 0;
-	for (int i = 0; i < line.size(); i++) {
+	for (size_t i = 0; i < line.size(); i++) {
 		char c = line[i];
 		if (c == '\t') {
 			int spacesCnt = 4 - virtualSymbols % 4;

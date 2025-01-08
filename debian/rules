@@ -16,5 +16,10 @@ ifneq (,$(findstring Ubuntu,$(OS)))
     endif
 endif
 
+override_dh_auto_configure:
+	dh_auto_configure -- \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DBUILD_STATIC:BOOL=ON
+
 %:
 	dh $@ --buildsystem=cmake

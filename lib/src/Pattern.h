@@ -93,8 +93,8 @@ class Pattern {
 		static std::shared_ptr<PtrExp> parse(const std::string &pattern);
 		static std::string stringify(const std::shared_ptr<PtrExp> &pattern);
 		static int findAlignForPattern(const std::shared_ptr<PtrExp> &pattern, int align);
-		static std::vector<SearchResult> find(const std::shared_ptr<PtrExp> &pattern, const Memory &memory, int maxResults = 0);
-		static std::vector<XRefSearchResult> finXRefs(uint32_t addr, const Memory &memory, int maxResults = 0);
+		static std::vector<SearchResult> find(const std::shared_ptr<PtrExp> &pattern, const Memory &memory, size_t maxResults = 0);
+		static std::vector<XRefSearchResult> finXRefs(uint32_t addr, const Memory &memory, size_t maxResults = 0);
 		static bool checkPattern(const std::shared_ptr<PtrExp> &pattern, size_t offset, const Memory &memory);
 		static std::tuple<bool, uint32_t, bool> decodeThumbBL(uint32_t offset, const uint8_t *bytes);
 		static std::tuple<bool, uint32_t, bool> decodeArmBL(uint32_t offset, const uint8_t *bytes);

@@ -18,12 +18,16 @@ jobs:
       - name: Installing dependencies
         run: |
           sudo apt-get update
-          sudo apt-get -y install cmake mingw-w64 mingw-w64-tools mingw-w64-i686-dev mingw-w64-x86-64-dev mingw-w64-common fakeroot build-essential debhelper
+          sudo apt-get -y install cmake fakeroot build-essential debhelper
 
       - name: Building ptr89
         run: |
-          tools/build_deb.sh
-          tools/build_win.sh
+          fakeroot debian/rules binary
+          fakeroot debian/rules clean
+          cmake -B build -DBUILD_STATIC:BOOL=TRUE -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j$(nproc)
+          cd build
+          tar -cpvzf ptr89.tar.gz ./ptr89
 
       - uses: softprops/action-gh-release@v1
         with:
@@ -31,4 +35,45 @@ jobs:
           prerelease: true
           files: |
             ../*.deb
-            build-win/ptr89.exe
+            build/ptr89.tar.gz
+
+      - name: Check out homebrew tap
+        uses: actions/checkout@v3
+        with:
+          repository: siemens-mobile-hacks/homebrew-tap
+          path: ./tap
+          token: ${{ secrets.TAP_GITHUB_TOKEN }}
+
+      - name: Generate formula
+        run: |
+          sed -i "s/RELEASE_TAG_NAME/$GITHUB_REF_NAME/g" ptr89.rb
+          sed -i "s/RELEASE_TAG_HASH/$GITHUB_SHA/g" ptr89.rb
+          cat ptr89.rb
+
+          cd tap
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git pull
+          cp ../ptr89.rb Formula/ptr89.rb
+          git add Formula/ptr89.rb
+          git commit -m "ptr89: $GITHUB_REF_NAME"
+          git push --set-upstream origin main
+
+  build-windows:
+    runs-on: windows-2019
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+
+      - name: Building ptr89
+        run: |
+          cmake -B build
+          cmake --build build --config Release
+
+      - uses: softprops/action-gh-release@v1
+        with:
+          token: "${{ secrets.GITHUB_TOKEN }}"
+          prerelease: true
+          files: |
+            build/Release/ptr89.exe

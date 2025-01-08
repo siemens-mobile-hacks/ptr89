@@ -8,7 +8,7 @@ using json = nlohmann::json;
 using namespace Ptr89;
 
 int main(int argc, char *argv[]) {
-	argparse::ArgumentParser program("ptr89", "1.0.1");
+	argparse::ArgumentParser program("ptr89", "1.0.2");
 
 	program.add_argument("-f", "--file")
 		.required()
@@ -137,7 +137,7 @@ int main(int argc, char *argv[]) {
 					j["patterns"].push_back(patternJson);
 				} else {
 					printf("Pattern: '%s'\n", patternStr.c_str());
-					printf("Found %ld matches:\n", results.size());
+					printf("Found %" PRIu64 "d matches:\n", results.size());
 					for (auto &result: results) {
 						if (pattern->type == PATTERN_TYPE_OFFSET) {
 							printf("  %08X: %08X (offset)\n", result.address, result.value);
@@ -185,7 +185,7 @@ int main(int argc, char *argv[]) {
 				}
 			} else {
 				printf("Searching x-refs for %08X\n", addr);
-				printf("Found %ld matches:\n", results.size());
+				printf("Found %" PRIu64 "d matches:\n", results.size());
 				for (auto &result: results) {
 					if (result.type == XREF_TYPE_REFERENCE) {
 						printf("  %08X (reference)\n", result.address);
@@ -325,7 +325,6 @@ std::pair<uint8_t *, size_t> readBinaryFile(const std::string &path) {
 	size_t maxFileSize = std::filesystem::file_size(path);
 	uint8_t *bytes = new uint8_t[maxFileSize];
 
-	char buff[4096];
 	size_t readed = 0;
 	while (!feof(fp) && readed < maxFileSize) {
 		int ret = fread(bytes + readed, 1, std::min(static_cast<size_t>(4096), maxFileSize - readed), fp);

@@ -18,18 +18,26 @@ The name was chosen in respect to [Viktor89](https://patches.kibab.com/user.php5
 # DOWNLOAD
 - Windows: download .exe in [Releases](https://github.com/siemens-mobile-hacks/ptr89/releases).
 - ArchLinux: `yay -S ptr89-git`
-- [Ubuntu/Debian/Fedora/OpenSUSE repository](https://software.opensuse.org//download.html?project=home%3AZhumarin&package=ptr89)
-- Old Ubuntu/Debian: download .deb in [Releases](https://github.com/siemens-mobile-hacks/ptr89/releases).
+- OSX: `brew install siemens-mobile-hacks/tap/ptr89`
+- Ubuntu/Debian: download .deb in [Releases](https://github.com/siemens-mobile-hacks/ptr89/releases).
 - Build from sources:
 	```bash
-	# Ubuntu/Debian
+ 	git clone https://github.com/siemens-mobile-hacks/ptr89
+ 	cd ptr89
+	git submodule init
+ 	git submodule update
+
+ 	# Ubuntu/Debian
 	fakeroot debian/rules binary
- 
-	# OSX/Linux/Unix
-	mkdir build
-	cd build
-	cmake ..
-	make -j$(nproc)
+
+	# OSX, Linux, Unix, MinGW, Windows MSVC
+	cmake -B build -DCMAKE_BUILD_TYPE=Release
+	cmake --build build
+	cmake --install build
+
+	# Windows
+	cmake -B build
+	cmake --build build --config Release
 	```
 
 # USAGE

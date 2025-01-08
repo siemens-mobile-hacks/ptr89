@@ -34,9 +34,9 @@ class Tokenizer {
 		};
 
 		struct Token {
-			TokenType type;
-			int start;
-			int end;
+			TokenType type = TOK_NULL;
+			int start = 0;
+			int end = 0;
 		};
 
 	protected:
