@@ -8,7 +8,7 @@ using json = nlohmann::json;
 using namespace Ptr89;
 
 int main(int argc, char *argv[]) {
-	argparse::ArgumentParser program("ptr89", "1.0.2");
+	argparse::ArgumentParser program("ptr89", "1.0.4");
 
 	program.add_argument("-f", "--file")
 		.required()
