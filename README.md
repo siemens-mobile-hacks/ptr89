@@ -28,7 +28,7 @@ The name was chosen in respect to [Viktor89](https://patches.kibab.com/user.php5
  	# Ubuntu/Debian
 	fakeroot debian/rules binary
 
-	# OSX, Linux, Unix, MinGW, Windows MSVC
+	# OSX, Linux, Unix, MinGW
 	cmake -B build -DCMAKE_BUILD_TYPE=Release
 	cmake --build build
 	cmake --install build
