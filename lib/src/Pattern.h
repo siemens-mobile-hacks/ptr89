@@ -123,8 +123,13 @@ class Pattern {
 			m_debugLevel--;
 		}
 
+		#if defined(_MSC_VER)
+		static void debug(const char *format, ...);
+		static void _debug(const char *format, ...);
+		#else
 		static void debug(const char *format, ...)  __attribute__((format(printf, 1, 2)));
 		static void _debug(const char *format, ...)  __attribute__((format(printf, 1, 2)));
+		#endif
 	private:
 		static DebugHandlerFunc m_debugHandler;
 		static int m_debugLevel;
