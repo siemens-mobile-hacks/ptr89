@@ -1,7 +1,5 @@
 # Ptr89
 
-[![build result](https://build.opensuse.org/projects/home:Zhumarin/packages/ptr89/badge.svg?type=default)](https://build.opensuse.org/package/show/home:Zhumarin/ptr89)
-
 There is yet another ARM/THUMB pattern finder.
 
 Main features:
