@@ -18,7 +18,7 @@ jobs:
       - name: Installing dependencies
         run: |
           sudo apt-get update
-          sudo apt-get -y install cmake fakeroot build-essential debhelper
+          sudo apt-get -y install cmake mingw-w64 mingw-w64-tools mingw-w64-i686-dev mingw-w64-x86-64-dev mingw-w64-common fakeroot build-essential debhelper
 
       - name: Building ptr89
         run: |
