@@ -18,7 +18,7 @@ int main(int argc, char *argv[]) {
 	spdlog::set_pattern("%v");
 	spdlog::set_level(spdlog::level::warn);
 
-	argparse::ArgumentParser program("ptr89", "1.0.4");
+	argparse::ArgumentParser program("ptr89", "1.1.0");
 
 	program.add_argument("-f", "--file")
 		.required()
