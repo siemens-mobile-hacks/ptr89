@@ -42,7 +42,7 @@ jobs:
       - if: github.event_name == 'release'
         run: pnpm run prepack
       - if: github.event_name == 'release'
-        run: npm publish build-npm --access public
+        run: npm publish ./build-npm --access public
 
       - uses: softprops/action-gh-release@v1
         with:
