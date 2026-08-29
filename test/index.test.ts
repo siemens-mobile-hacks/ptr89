@@ -29,8 +29,7 @@ describe("Ptr89 WASM", () => {
 			type: "reference",
 			results: [{
 				address: 0xA0000008,
-				offset: 0,
-				bytes: "0048",
+				offset: 8,
 			}],
 		});
 		expect(ptr89.find("*(08 00 00 A0)", 1)).toEqual({
@@ -38,22 +37,20 @@ describe("Ptr89 WASM", () => {
 			type: "pointer",
 			results: [{
 				address: 0xA0000008,
-				offset: 4,
-				bytes: "080000A0",
+				offset: 8,
 			}],
 		});
 		expect(ptr89.findXRefs(0xA0000008, 10)).toContainEqual({
 			type: "reference",
 			xref: 0xA0000000,
 			offset: 0,
-			bytes: "0048",
 		});
 		expect(ptr89.find("10 B5", 1)).toEqual({
 			pattern: "10 B5",
 			type: "address",
 			results: [{
 				address: 0xA000000B,
-				offset: 10,
+				offset: 11,
 				bytes: "10B5",
 			}],
 		});
@@ -62,7 +59,7 @@ describe("Ptr89 WASM", () => {
 			type: "address",
 			results: [{
 				address: 0xA0000003,
-				offset: 2,
+				offset: 3,
 				bytes: "00BF",
 			}],
 		});
@@ -98,8 +95,7 @@ describe("Ptr89 WASM", () => {
 			type: "branch",
 			results: [{
 				address: 0xFFFFFE,
-				offset: 0,
-				bytes: "0D01",
+				offset: 4,
 			}],
 		});
 		expect(ptr89.find("<123456>", 1)).toEqual({
@@ -131,7 +127,7 @@ describe("Ptr89 WASM", () => {
 			type: "address",
 			results: [{
 				address: 0xA0000003,
-				offset: 2,
+				offset: 3,
 				bytes: "10B5",
 			}],
 		});

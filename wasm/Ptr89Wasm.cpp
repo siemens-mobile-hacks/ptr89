@@ -62,7 +62,13 @@ Ptr89Search Ptr89Wasm::find(const std::string &patternText, size_t limit, int al
 	Ptr89Search search = { patternText, Pattern::getSearchTypeName(pattern->type), { } };
 	search.results.reserve(matches.size());
 	for (const auto &match: matches) {
-		search.results.push_back({ match.address, match.offset, getBytes(match.offset, match.size, memory) });
+		std::optional<uint32_t> offset;
+		if (Pattern::inMemory(memory, match.address))
+			offset = match.address - memory.base;
+		std::string bytes = pattern->type == RESULT_TYPE_OFFSET ?
+			getBytes(match.offset, match.size, memory) :
+			"";
+		search.results.push_back({ match.address, offset, bytes });
 	}
 	return search;
 }
@@ -73,8 +79,7 @@ std::vector<Ptr89XRef> Ptr89Wasm::findXRefs(uint32_t address, size_t limit) cons
 	std::vector<Ptr89XRef> results;
 	results.reserve(matches.size());
 	for (const auto &match: matches) {
-		results.push_back({ Pattern::getResultTypeName(match.type), match.address, match.offset,
-			getBytes(match.offset, match.size, memory) });
+		results.push_back({ Pattern::getResultTypeName(match.type), match.address, match.offset });
 	}
 	return results;
 }

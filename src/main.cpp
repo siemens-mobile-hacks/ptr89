@@ -39,48 +39,72 @@ static std::string getResultBytesJSON(uint32_t offset, size_t resultSize, const 
 	return bytes;
 }
 
-static json searchResultToJSON(const Pattern::SearchResult &result, const Pattern::Memory &memory) {
+static json searchResultToJSON(const Pattern::SearchResult &result, ResultType type, const Pattern::Memory &memory) {
 	json item = { { "address", result.address } };
-	if (result.size != 0) {
-		item["offset"] = result.offset;
+	if (Pattern::inMemory(memory, result.address))
+		item["offset"] = result.address - memory.base;
+	if (type == RESULT_TYPE_OFFSET)
 		item["bytes"] = getResultBytesJSON(result.offset, result.size, memory);
-	}
 	return item;
 }
 
-static json xrefToJSON(const Pattern::XRef &xref, const Pattern::Memory &memory) {
+static json xrefToJSON(const Pattern::XRef &xref) {
 	return {
 		{ "xref", xref.address },
 		{ "offset", xref.offset },
 		{ "type", Pattern::getResultTypeName(xref.type) },
-		{ "bytes", getResultBytesJSON(xref.offset, xref.size, memory) },
 	};
 }
 
-static void printResults(const std::vector<Pattern::SearchResult> &results, const Pattern::Memory &memory, bool showBytes) {
+static const char *getTargetColumnName(ResultType type) {
+	switch (type) {
+		case RESULT_TYPE_POINTER:
+			return "POINTER";
+		case RESULT_TYPE_REFERENCE:
+			return "REFERENCE";
+		case RESULT_TYPE_BRANCH:
+			return "BRANCH";
+		default:
+			return "ADDRESS";
+	}
+}
+
+static std::string getResultOffset(uint32_t address, const Pattern::Memory &memory) {
+	return Pattern::inMemory(memory, address) ?
+		std::format("{:08X}", address - memory.base) :
+		"-";
+}
+
+static void printResults(const std::vector<Pattern::SearchResult> &results, ResultType type,
+	const Pattern::Memory &memory, bool showBytes) {
 	if (results.empty())
 		return;
 
-	std::cout << "  ADDRESS   OFFSET    BYTES\n";
+	bool hasBytes = type == RESULT_TYPE_OFFSET;
+	std::cout << std::format("  {:<9} OFFSET", getTargetColumnName(type));
+	if (hasBytes)
+		std::cout << "    BYTES";
+	std::cout << '\n';
+
 	for (const auto &result: results) {
-		if (result.size == 0) {
-			std::cout << std::format("  {:08X}  {:<9} {}\n", result.address, "-", getResultBytes(result.offset, result.size, memory, showBytes));
+		std::string offset = getResultOffset(result.address, memory);
+		if (hasBytes) {
+			std::cout << std::format("  {:08X}  {:<8}  {}\n",
+				result.address, offset, getResultBytes(result.offset, result.size, memory, showBytes));
 		} else {
-			std::cout << std::format("  {:08X}  {:08X}  {}\n",
-				result.address, result.offset, getResultBytes(result.offset, result.size, memory, showBytes));
+			std::cout << std::format("  {:08X}  {}\n", result.address, offset);
 		}
 	}
 }
 
-static void printXRefs(const std::vector<Pattern::XRef> &results, const Pattern::Memory &memory, bool showBytes) {
+static void printXRefs(const std::vector<Pattern::XRef> &results) {
 	if (results.empty())
 		return;
 
-	std::cout << "  OFFSET    XREF      KIND       BYTES\n";
+	std::cout << "  OFFSET    XREF      KIND\n";
 	for (const auto &result: results) {
-		std::cout << std::format("  {:08X}  {:08X}  {:<10} {}\n",
-			result.offset, result.address, Pattern::getResultTypeName(result.type),
-			getResultBytes(result.offset, result.size, memory, showBytes));
+		std::cout << std::format("  {:08X}  {:08X}  {}\n",
+			result.offset, result.address, Pattern::getResultTypeName(result.type));
 	}
 }
 
@@ -261,12 +285,12 @@ int main(int argc, char *argv[]) {
 					patternJson["type"] = Pattern::getSearchTypeName(pattern->type);
 					patternJson["results"] = json::array();
 					for (const auto &result: results)
-						patternJson["results"].push_back(searchResultToJSON(result, memoryRegion));
+						patternJson["results"].push_back(searchResultToJSON(result, pattern->type, memoryRegion));
 					j["patterns"].push_back(patternJson);
 				} else {
 					std::cout << std::format("Pattern: '{}'\n", patternStr);
 					printResultCount(results.size(), pattern->type);
-					printResults(results, memoryRegion, showBytes);
+					printResults(results, pattern->type, memoryRegion, showBytes);
 					std::cout << '\n';
 				}
 			}
@@ -284,11 +308,11 @@ int main(int argc, char *argv[]) {
 			auto results = Pattern::finXRefs(addr, memoryRegion, limit);
 			if (asJSON) {
 				for (const auto &result: results)
-					j["xrefs"].push_back(xrefToJSON(result, memoryRegion));
+					j["xrefs"].push_back(xrefToJSON(result));
 			} else {
 				std::cout << std::format("Xrefs to 0x{:08X}\n", addr);
 				printXRefCount(results.size());
-				printXRefs(results, memoryRegion, showBytes);
+				printXRefs(results);
 				std::cout << '\n';
 			}
 			auto end = duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
@@ -313,7 +337,7 @@ int main(int argc, char *argv[]) {
 					};
 					functionJson["result"] = results.empty() || results[0].address == 0xFFFFFFFF ?
 						json(nullptr) :
-						searchResultToJSON(results[0], memoryRegion);
+						searchResultToJSON(results[0], pattern->type, memoryRegion);
 					j["functions"].push_back(functionJson);
 				} else {
 					if (entry.id > 0 && (entry.id & 0xF) == 0)

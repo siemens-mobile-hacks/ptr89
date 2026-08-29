@@ -397,18 +397,22 @@ std::vector<Pattern::XRef> Pattern::finXRefs(uint32_t addr, const Memory &memory
 	spdlog::debug("Searching XRef's for {:08X}", addr);
 	std::vector<XRef> searchResults;
 	for (size_t i = 0; i < memory.size; i += 2) {
-		auto [isReference, refAddr, referenceSize] = decodeReference(i, memory);
-		auto [isBranchReference, branchAddr, branchSize] = decodeBranchReference(i, memory);
+		bool isReference;
+		uint32_t refAddr;
+		std::tie(isReference, refAddr, std::ignore) = decodeReference(i, memory);
+		bool isBranchReference;
+		uint32_t branchAddr;
+		std::tie(isBranchReference, branchAddr, std::ignore) = decodeBranchReference(i, memory);
 		auto [isPointer, ptrAddr] = decodePointer(i + memory.base, memory);
 		if (isBranchReference && (branchAddr & ~1) == (addr & ~1)) {
 			spdlog::debug("FOUND: branch at {:08X}", i + memory.base);
-			searchResults.push_back({ RESULT_TYPE_BRANCH, static_cast<uint32_t>(memory.base + i), static_cast<uint32_t>(i), branchSize });
+			searchResults.push_back({ RESULT_TYPE_BRANCH, static_cast<uint32_t>(memory.base + i), static_cast<uint32_t>(i) });
 		} else if (isReference && (refAddr & ~1) == (addr & ~1)) {
 			spdlog::debug("FOUND: reference at {:08X}", i + memory.base);
-			searchResults.push_back({ RESULT_TYPE_REFERENCE, static_cast<uint32_t>(memory.base + i), static_cast<uint32_t>(i), referenceSize });
+			searchResults.push_back({ RESULT_TYPE_REFERENCE, static_cast<uint32_t>(memory.base + i), static_cast<uint32_t>(i) });
 		} else if (isPointer && (ptrAddr & ~1) == (addr & ~1)) {
 			spdlog::debug("FOUND: pointer at {:08X}", i + memory.base);
-			searchResults.push_back({ RESULT_TYPE_POINTER, static_cast<uint32_t>(memory.base + i), static_cast<uint32_t>(i), 4 });
+			searchResults.push_back({ RESULT_TYPE_POINTER, static_cast<uint32_t>(memory.base + i), static_cast<uint32_t>(i) });
 		}
 
 		if (maxResults && searchResults.size() >= maxResults) {

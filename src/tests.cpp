@@ -244,7 +244,7 @@ static void testThumbPattern() {
 
 	auto xrefs = Pattern::finXRefs(0xA0000008, referenceMemory, 1);
 	assert(xrefs.size() == 1 && xrefs[0].type == RESULT_TYPE_REFERENCE &&
-		xrefs[0].address == 0xA0000000 && xrefs[0].offset == 0 && xrefs[0].size == 2);
+		xrefs[0].address == 0xA0000000 && xrefs[0].offset == 0);
 
 	uint8_t functionBytes[] = {
 		0x10, 0xB5,	// PUSH {R4, LR}

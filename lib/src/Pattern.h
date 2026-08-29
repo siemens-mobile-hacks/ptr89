@@ -85,7 +85,6 @@ class Pattern {
 			ResultType type;
 			uint32_t address;
 			uint32_t offset;
-			size_t size;
 		};
 
 		static std::shared_ptr<PtrExp> parse(const std::string &pattern);

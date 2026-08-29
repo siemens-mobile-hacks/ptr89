@@ -28,7 +28,6 @@ export interface Ptr89XRef {
 	type: Ptr89XRefType;
 	xref: number;
 	offset: number;
-	bytes: string;
 }
 
 const C166_ADDRESS_SPACE_SIZE = 0x1000000;
@@ -122,11 +121,11 @@ export class Ptr89 {
 					if (!match)
 						throw new Error(`Missing search result at index ${i}.`);
 					const result: Ptr89SearchResult = { address: match.address };
-					const bytes = String(match.bytes);
-					if (bytes) {
+					if (match.offset !== undefined)
 						result.offset = match.offset;
+					const bytes = String(match.bytes);
+					if (bytes)
 						result.bytes = bytes;
-					}
 					return result;
 				});
 				return {
@@ -159,7 +158,6 @@ export class Ptr89 {
 						type: String(match.type) as Ptr89XRefType,
 						xref: match.xref,
 						offset: match.offset,
-						bytes: String(match.bytes),
 					};
 				});
 			} finally {

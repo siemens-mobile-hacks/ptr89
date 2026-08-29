@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -11,7 +12,7 @@ namespace Ptr89 {
 
 struct Ptr89SearchResult {
 	uint32_t address;
-	uint32_t offset;
+	std::optional<uint32_t> offset;
 	std::string bytes;
 };
 
@@ -25,7 +26,6 @@ struct Ptr89XRef {
 	std::string type;
 	uint32_t xref;
 	uint32_t offset;
-	std::string bytes;
 };
 
 class Ptr89Wasm {
