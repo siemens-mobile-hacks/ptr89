@@ -47,7 +47,6 @@ jobs:
       - uses: softprops/action-gh-release@v1
         with:
           token: "${{ secrets.GITHUB_TOKEN }}"
-          prerelease: true
           files: |
             ../*.deb
             build/*.tar.gz
