@@ -54,16 +54,17 @@ void Ptr89Wasm::setDebug(bool enabled) {
 	spdlog::set_level(enabled ? spdlog::level::debug : spdlog::level::warn);
 }
 
-std::vector<Ptr89SearchResult> Ptr89Wasm::find(const std::string &patternText, size_t limit, int align) const {
+Ptr89Search Ptr89Wasm::find(const std::string &patternText, size_t limit, int align) const {
 	auto memory = getMemory(align);
 	auto pattern = Pattern::parse(patternText);
 	auto matches = Pattern::find(pattern, memory, limit);
 
-	std::vector<Ptr89SearchResult> results;
-	results.reserve(matches.size());
-	for (const auto &match: matches)
-		results.push_back({ match.address, match.offset, getBytes(match.offset, match.size, memory) });
-	return results;
+	Ptr89Search search = { patternText, Pattern::getSearchTypeName(pattern->type), { } };
+	search.results.reserve(matches.size());
+	for (const auto &match: matches) {
+		search.results.push_back({ match.address, match.offset, getBytes(match.offset, match.size, memory) });
+	}
+	return search;
 }
 
 std::vector<Ptr89XRef> Ptr89Wasm::findXRefs(uint32_t address, size_t limit) const {

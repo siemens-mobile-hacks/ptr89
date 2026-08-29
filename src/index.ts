@@ -4,6 +4,7 @@ type WasmModule = Awaited<ReturnType<typeof createModule>>;
 type WasmPtr89 = InstanceType<WasmModule["Ptr89"]>;
 
 export type Ptr89Arch = "arm" | "c166";
+export type Ptr89SearchType = "address" | "pointer" | "reference" | "branch";
 export type Ptr89XRefType = "pointer" | "reference" | "branch";
 
 export interface Ptr89OpenOptions {
@@ -15,6 +16,12 @@ export interface Ptr89SearchResult {
 	address: number;
 	offset?: number;
 	bytes?: string;
+}
+
+export interface Ptr89Search {
+	pattern: string;
+	type: Ptr89SearchType;
+	results: Ptr89SearchResult[];
 }
 
 export interface Ptr89XRef {
@@ -102,14 +109,15 @@ export class Ptr89 {
 		this.getHandle().setDebug(enabled);
 	}
 
-	find(pattern: string, limit = 100, align = 1): Ptr89SearchResult[] {
+	find(pattern: string, limit = 100, align = 1): Ptr89Search {
 		validateLimit(limit);
 		validateAlign(align);
 		const [module, handle] = this.getState();
 		try {
-			const matches = handle.find(pattern, limit, align);
+			const search = handle.find(pattern, limit, align);
+			const matches = search.results;
 			try {
-				return Array.from({ length: matches.size() }, (_, i) => {
+				const results = Array.from({ length: matches.size() }, (_, i) => {
 					const match = matches.get(i);
 					if (!match)
 						throw new Error(`Missing search result at index ${i}.`);
@@ -121,6 +129,11 @@ export class Ptr89 {
 					}
 					return result;
 				});
+				return {
+					pattern: String(search.pattern),
+					type: String(search.type) as Ptr89SearchType,
+					results,
+				};
 			} finally {
 				matches.delete();
 			}

@@ -15,6 +15,12 @@ struct Ptr89SearchResult {
 	std::string bytes;
 };
 
+struct Ptr89Search {
+	std::string pattern;
+	std::string type;
+	std::vector<Ptr89SearchResult> results;
+};
+
 struct Ptr89XRef {
 	std::string type;
 	uint32_t xref;
@@ -37,7 +43,7 @@ class Ptr89Wasm {
 		void open(uintptr_t ptr, size_t size, uint32_t base, const std::string &archName);
 		void close();
 		void setDebug(bool enabled);
-		std::vector<Ptr89SearchResult> find(const std::string &patternText, size_t limit, int align) const;
+		Ptr89Search find(const std::string &patternText, size_t limit, int align) const;
 		std::vector<Ptr89XRef> findXRefs(uint32_t address, size_t limit) const;
 };
 

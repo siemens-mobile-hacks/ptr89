@@ -42,6 +42,12 @@ const char *Pattern::getResultTypeName(ResultType type) {
 	throw std::invalid_argument("Invalid result type.");
 }
 
+const char *Pattern::getSearchTypeName(ResultType type) {
+	return type == RESULT_TYPE_OFFSET || type == RESULT_TYPE_ADDRESS ?
+		"address" :
+		getResultTypeName(type);
+}
+
 bool Pattern::fuzzyMatch(const uint8_t *bytes, const uint8_t *masks, int patternSize, const uint8_t *memory) {
 	bool found = true;
 	for (int j = 0; j < patternSize; j++) {

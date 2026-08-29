@@ -18,7 +18,7 @@ const fullflash = await readFile("EL71v45.bin");
 const ptr89 = new Ptr89();
 await ptr89.open(fullflash, { arch: "arm" });
 
-const matches = ptr89.find("F0B5061C0C1C151C85B068461122??49", 1);
+const search = ptr89.find("F0B5061C0C1C151C85B068461122??49", 1);
 const xrefs = ptr89.findXRefs(0xA04CA048, 3);
 
 ptr89.close();
@@ -64,21 +64,31 @@ as for `open()`.
 ### `find(pattern, limit?, align?)`
 
 ```ts
-find(pattern: string, limit?: number, align?: number): Ptr89SearchResult[];
+find(pattern: string, limit?: number, align?: number): Ptr89Search;
 ```
 
 Finds one pattern in the opened fullflash. The default limit is `100`; a limit
-of `0` disables it. The default alignment is `1`. `address` is the resolved
-pattern result, while `offset` and `bytes` describe its location in the
-fullflash. Fixed addresses contain only `address`:
+of `0` disables it. The default alignment is `1`. The returned object has the
+same shape as one entry in the CLI `-J` `patterns` array:
 
 ```ts
+type Ptr89SearchType = "address" | "pointer" | "reference" | "branch";
+
+interface Ptr89Search {
+	pattern: string;
+	type: Ptr89SearchType;
+	results: Ptr89SearchResult[];
+}
+
 interface Ptr89SearchResult {
 	address: number;
 	offset?: number;
 	bytes?: string;
 }
 ```
+
+`address` is the resolved pattern result, while `offset` and `bytes` describe
+its location in the fullflash. Fixed addresses contain only `address`.
 
 ### `findXRefs(address, limit?)`
 

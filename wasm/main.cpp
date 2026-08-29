@@ -6,6 +6,11 @@ using namespace emscripten;
 using namespace Ptr89;
 
 EMSCRIPTEN_BINDINGS(ptr89) {
+	value_object<Ptr89Search>("Ptr89Search")
+		.field("pattern", &Ptr89Search::pattern)
+		.field("type", &Ptr89Search::type)
+		.field("results", &Ptr89Search::results);
+
 	value_object<Ptr89SearchResult>("Ptr89SearchResult")
 		.field("address", &Ptr89SearchResult::address)
 		.field("offset", &Ptr89SearchResult::offset)

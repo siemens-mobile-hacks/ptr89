@@ -90,6 +90,7 @@ class Pattern {
 
 		static std::shared_ptr<PtrExp> parse(const std::string &pattern);
 		static const char *getResultTypeName(ResultType type);
+		static const char *getSearchTypeName(ResultType type);
 		static std::string stringify(const std::shared_ptr<PtrExp> &pattern);
 		static int findAlignForPattern(const std::shared_ptr<PtrExp> &pattern, int align, Architecture architecture = ARCH_ARM);
 		static std::vector<SearchResult> find(const std::shared_ptr<PtrExp> &pattern, const Memory &memory, size_t maxResults = 0);

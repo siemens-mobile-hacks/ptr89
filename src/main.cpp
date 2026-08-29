@@ -13,12 +13,6 @@ using namespace Ptr89;
 
 static constexpr uint64_t C166_ADDRESS_SPACE_SIZE = 0x1000000;
 
-static const char *getSearchTypeName(ResultType type) {
-	return type == RESULT_TYPE_OFFSET || type == RESULT_TYPE_ADDRESS ?
-		"address" :
-		Pattern::getResultTypeName(type);
-}
-
 static std::string getResultBytes(uint32_t offset, size_t resultSize, const Pattern::Memory &memory, bool showBytes) {
 	if (resultSize == 0 || offset >= memory.size)
 		return "-";
@@ -264,7 +258,7 @@ int main(int argc, char *argv[]) {
 				if (asJSON) {
 					json patternJson;
 					patternJson["pattern"] = patternStr;
-					patternJson["type"] = getSearchTypeName(pattern->type);
+					patternJson["type"] = Pattern::getSearchTypeName(pattern->type);
 					patternJson["results"] = json::array();
 					for (const auto &result: results)
 						patternJson["results"].push_back(searchResultToJSON(result, memoryRegion));
@@ -315,7 +309,7 @@ int main(int argc, char *argv[]) {
 						{ "id", entry.id },
 						{ "name", entry.funcName },
 						{ "pattern", entry.pattern },
-						{ "type", getSearchTypeName(pattern->type) },
+						{ "type", Pattern::getSearchTypeName(pattern->type) },
 					};
 					functionJson["result"] = results.empty() || results[0].address == 0xFFFFFFFF ?
 						json(nullptr) :
