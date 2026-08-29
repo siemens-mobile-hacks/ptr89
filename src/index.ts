@@ -68,6 +68,7 @@ function validateAlign(align: number): void {
 export class Ptr89 {
 	private module?: WasmModule;
 	private handle?: WasmPtr89;
+	private ptr?: number;
 
 	async open(data: Uint8Array, options: Ptr89OpenOptions = {}): Promise<void> {
 		await this.openData(data.byteLength, options, (module, ptr) => module.HEAPU8.set(data, ptr));
@@ -100,8 +101,11 @@ export class Ptr89 {
 			return;
 		this.handle.close();
 		this.handle.delete();
+		if (this.module && this.ptr !== undefined)
+			this.module._free(this.ptr);
 		this.handle = undefined;
 		this.module = undefined;
+		this.ptr = undefined;
 	}
 
 	setDebug(enabled: boolean): void {
@@ -191,14 +195,18 @@ export class Ptr89 {
 		try {
 			await write(module, ptr);
 			handle.open(ptr, size, base, arch);
+			if (this.module && this.ptr !== undefined)
+				this.module._free(this.ptr);
 			this.module = module;
 			this.handle = handle;
+			this.ptr = ptr;
 		} catch (error) {
 			if (!this.handle)
 				handle.delete();
 			throw getError(module, error);
 		} finally {
-			module._free(ptr);
+			if (this.ptr !== ptr)
+				module._free(ptr);
 		}
 	}
 

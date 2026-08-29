@@ -89,7 +89,7 @@ For example, a 14 MiB M55 fullflash gets base `0x200000`. An explicit `--base` a
 $ ptr89 -f M55_v91.bin -A c166 -p '&BL(F0C8F0D9DA257293F0C8F0D9DA9A3293 + C)'
 Pattern: '&BL(F0C8F0D9DA257293F0C8F0D9DA9A3293 + C)'
 Found 1 branch:
-  BRANCH    OFFSET
+  FUNCTION  OFFSET
   009A9332  007A9332
 ```
 

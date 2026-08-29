@@ -50,7 +50,7 @@ describe("Ptr89 WASM", () => {
 			type: "address",
 			results: [{
 				address: 0xA000000B,
-				offset: 11,
+				offset: 10,
 				bytes: "10B5",
 			}],
 		});
@@ -59,7 +59,7 @@ describe("Ptr89 WASM", () => {
 			type: "address",
 			results: [{
 				address: 0xA0000003,
-				offset: 3,
+				offset: 2,
 				bytes: "00BF",
 			}],
 		});
@@ -109,6 +109,25 @@ describe("Ptr89 WASM", () => {
 		ptr89.close();
 	});
 
+	it("reopens memory", async () => {
+		const ptr89 = new Ptr89();
+		await ptr89.open(Uint8Array.from([
+			0x10, 0xB5,	// PUSH {R4, LR}
+		]));
+		await ptr89.open(Uint8Array.from([
+			0x00, 0xBF,	// NOP
+		]));
+
+		expect(ptr89.find("10 B5", 1).results).toEqual([]);
+		expect(ptr89.find("00 BF", 1).results).toEqual([{
+			address: 0xA0000000,
+			offset: 0,
+			bytes: "00BF",
+		}]);
+
+		ptr89.close();
+	});
+
 	it("opens a Blob directly", async () => {
 		const memory = Uint8Array.from([
 			0x00, 0xBF,	// NOP
@@ -127,7 +146,7 @@ describe("Ptr89 WASM", () => {
 			type: "address",
 			results: [{
 				address: 0xA0000003,
-				offset: 3,
+				offset: 2,
 				bytes: "10B5",
 			}],
 		});

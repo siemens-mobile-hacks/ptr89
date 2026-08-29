@@ -35,18 +35,16 @@ void Ptr89Wasm::open(uintptr_t ptr, size_t size, uint32_t base, const std::strin
 		throw std::invalid_argument("Invalid architecture '" + archName + "'. Expected arm or c166.");
 	}
 
-	const auto *data = reinterpret_cast<const uint8_t *>(ptr);
-	m_data.clear();
-	if (size != 0)
-		m_data.assign(data, data + size);
+	m_data = reinterpret_cast<const uint8_t *>(ptr);
+	m_size = size;
 	m_base = base;
 	m_arch = arch;
 	m_open = true;
 }
 
 void Ptr89Wasm::close() {
-	m_data.clear();
-	m_data.shrink_to_fit();
+	m_data = nullptr;
+	m_size = 0;
 	m_open = false;
 }
 
@@ -63,7 +61,9 @@ Ptr89Search Ptr89Wasm::find(const std::string &patternText, size_t limit, int al
 	search.results.reserve(matches.size());
 	for (const auto &match: matches) {
 		std::optional<uint32_t> offset;
-		if (Pattern::inMemory(memory, match.address))
+		if (pattern->type == RESULT_TYPE_OFFSET)
+			offset = match.offset;
+		else if (Pattern::inMemory(memory, match.address))
 			offset = match.address - memory.base;
 		std::string bytes = pattern->type == RESULT_TYPE_OFFSET ?
 			getBytes(match.offset, match.size, memory) :
@@ -89,7 +89,7 @@ Pattern::Memory Ptr89Wasm::getMemory(int align) const {
 		throw std::runtime_error("Ptr89 is not opened.");
 	if (align <= 0)
 		throw std::invalid_argument("Search alignment must be greater than zero.");
-	return { m_base, m_data.data(), m_data.size(), align, m_arch };
+	return { m_base, m_data, m_size, align, m_arch };
 }
 
 std::string prettify(const std::string &pattern) {

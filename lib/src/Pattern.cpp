@@ -74,33 +74,40 @@ bool Pattern::fuzzyMatch(const uint8_t *bytes, const uint8_t *masks, int pattern
 }
 
 bool Pattern::checkPattern(const std::shared_ptr<PtrExp> &pattern, size_t offset, const Memory &memory) {
-	if (spdlog::should_log(spdlog::level::debug))
+	bool debug = spdlog::should_log(spdlog::level::debug);
+	if (debug)
 		spdlog::debug("Checking pattern: '{}' at {:08X}", stringify(pattern), memory.base + offset);
 
 	if (pattern->type == RESULT_TYPE_ADDRESS) {
-		spdlog::debug("Fixed address: {:08X}", pattern->fixedAddress);
+		if (debug)
+			spdlog::debug("Fixed address: {:08X}", pattern->fixedAddress);
 		return true;
 	}
 
 	int patternSize = pattern->bytes.size();
 	if (!patternSize) {
-		spdlog::debug("FAIL: empty pattern!");
+		if (debug)
+			spdlog::debug("FAIL: empty pattern!");
 		return false;
 	}
 
 	if (offset > memory.size || static_cast<size_t>(patternSize) > memory.size - offset) {
-		spdlog::debug("FAIL: Address {:08X} is out of range.", memory.base + offset);
+		if (debug)
+			spdlog::debug("FAIL: Address {:08X} is out of range.", memory.base + offset);
 		return false;
 	}
 	if (!fuzzyMatch(&pattern->bytes[0], &pattern->masks[0], patternSize, memory.data + offset)) {
-		spdlog::debug("FAIL: bytes not matched.");
+		if (debug)
+			spdlog::debug("FAIL: bytes not matched.");
 		return false;
 	}
 	if (!checkSubpatterns(pattern, offset, memory)) {
-		spdlog::debug("FAIL: sub patterns not matched.");
+		if (debug)
+			spdlog::debug("FAIL: sub patterns not matched.");
 		return false;
 	}
-	spdlog::debug("Pattern matched!");
+	if (debug)
+		spdlog::debug("Pattern matched!");
 	return true;
 }
 
@@ -108,7 +115,9 @@ bool Pattern::checkSubpatterns(const std::shared_ptr<PtrExp> &pattern, size_t of
 	if (!pattern->subPatterns.size())
 		return true;
 
-	spdlog::debug("Checking sub patterns...");
+	bool debug = spdlog::should_log(spdlog::level::debug);
+	if (debug)
+		spdlog::debug("Checking sub patterns...");
 
 	const Arch &arch = getArch(memory.arch);
 	for (auto it: pattern->subPatterns) {
@@ -147,7 +156,7 @@ bool Pattern::checkSubpatterns(const std::shared_ptr<PtrExp> &pattern, size_t of
 			if (checkPattern(p.pattern, fileOffset, memory))
 				return true;
 		}
-		if (decoded.empty())
+		if (decoded.empty() && debug)
 			spdlog::debug("FAIL: architecture instruction could not be decoded.");
 	}
 
@@ -163,13 +172,17 @@ std::tuple<bool, uint32_t, size_t> Pattern::decodeBranchReference(uint32_t offse
 }
 
 std::pair<bool, uint32_t> Pattern::decodePointer(uint32_t addr, const Memory &memory) {
-	spdlog::debug("Try decoding pointer at {:08X}", addr);
+	bool debug = spdlog::should_log(spdlog::level::debug);
+	if (debug)
+		spdlog::debug("Try decoding pointer at {:08X}", addr);
 	auto [success, value] = getArch(memory.arch).decodePointer(addr, memory);
 	if (success) {
-		spdlog::debug("Pointer address: {:08X}", value);
+		if (debug)
+			spdlog::debug("Pointer address: {:08X}", value);
 		return { true, value };
 	}
-	spdlog::debug("FAIL: address is out of memory range!");
+	if (debug)
+		spdlog::debug("FAIL: address is out of memory range!");
 	return { false, 0 };
 }
 
@@ -264,24 +277,28 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 	int patternSize = pattern->bytes.size();
 
 	std::vector<SearchResult> searchResults;
+	bool debug = spdlog::should_log(spdlog::level::debug);
 
-	if (spdlog::should_log(spdlog::level::debug)) {
+	if (debug) {
 		spdlog::debug("Searching pattern: {}", stringify(pattern));
 		spdlog::debug("Memory: {:08X} {:08X}", memory.base, memory.size);
 	}
 
 	if (pattern->type == RESULT_TYPE_ADDRESS) {
-		spdlog::debug("Fixed address: {:08X}", pattern->fixedAddress);
+		if (debug)
+			spdlog::debug("Fixed address: {:08X}", pattern->fixedAddress);
 		searchResults.push_back({ pattern->fixedAddress, 0, 0 });
 		return searchResults;
 	}
 
 	if (!patternSize) {
-		spdlog::debug("FAIL: empty pattern!");
+		if (debug)
+			spdlog::debug("FAIL: empty pattern!");
 		return searchResults;
 	}
 	if (static_cast<size_t>(patternSize) > memory.size) {
-		spdlog::debug("FAIL: pattern is larger than memory!");
+		if (debug)
+			spdlog::debug("FAIL: pattern is larger than memory!");
 		return searchResults;
 	}
 
@@ -299,7 +316,8 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 	if (align != 1)
 		firstNonWildcardByte = 0;
 
-	spdlog::debug("Search align: {}", align);
+	if (debug)
+		spdlog::debug("Search align: {}", align);
 
 	/*
 	 * Optimized variant of checkPattern().
@@ -309,12 +327,14 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 	int size = patternSize - firstNonWildcardByte;
 
 	if (size >= 4 && !isTrulyWildcard) { // faster
-		spdlog::debug("Using fast pattern matching algorithm.");
+		if (debug)
+			spdlog::debug("Using fast pattern matching algorithm.");
 
 		uint32_t mask = *reinterpret_cast<uint32_t *>(masks);
 		uint32_t searchValue = *reinterpret_cast<uint32_t *>(bytes) & mask;
 
-		spdlog::debug("Search prefix: mask={:08X}, searchValue={:08X}", mask, searchValue);
+		if (debug)
+			spdlog::debug("Search prefix: mask={:08X}, searchValue={:08X}", mask, searchValue);
 
 		for (size_t i = firstNonWildcardByte; i < memory.size - patternSize + 1; i += align) {
 			uint32_t memoryValue = *reinterpret_cast<const uint32_t *>(memory.data + i);
@@ -322,17 +342,20 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 				if (size == 4 || fuzzyMatch(bytes + 4, masks + 4, size -  4, memory.data + i + 4)) {
 					size_t foundOffset = i - firstNonWildcardByte;
 
-					spdlog::debug("Possible result at {:08X}", memory.base + foundOffset);
+					if (debug)
+						spdlog::debug("Possible result at {:08X}", memory.base + foundOffset);
 
 					if (checkSubpatterns(pattern, foundOffset, memory)) {
 						auto [isDecoded, result] = decodeResult(pattern, foundOffset, memory);
 						if (isDecoded) {
 							searchResults.push_back(result);
 
-							spdlog::debug("FOUND: address={:08X}, offset={:08X}", result.address, result.offset);
+							if (debug)
+								spdlog::debug("FOUND: address={:08X}, offset={:08X}", result.address, result.offset);
 
 							if (maxResults && searchResults.size() >= maxResults) {
-								spdlog::debug("Maximum search results are reached.");
+								if (debug)
+									spdlog::debug("Maximum search results are reached.");
 								break;
 							}
 
@@ -345,30 +368,36 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 								i -= align;
 							}
 						} else {
-							spdlog::debug("FAIL: can't decode result!");
+							if (debug)
+								spdlog::debug("FAIL: can't decode result!");
 						}
 					} else {
-						spdlog::debug("FAIL: sub patterns not matched.");
+						if (debug)
+							spdlog::debug("FAIL: sub patterns not matched.");
 					}
 				}
 			}
 		}
 	} else {
-		spdlog::debug("Using slow pattern matching algorithm.");
+		if (debug)
+			spdlog::debug("Using slow pattern matching algorithm.");
 
 		for (size_t i = firstNonWildcardByte; i < memory.size - patternSize + 1; i += align) {
 			if (fuzzyMatch(bytes, masks, size, memory.data + i)) {
 				size_t foundOffset = i - firstNonWildcardByte;
-				spdlog::debug("Possible result at {:08X}", memory.base + foundOffset);
+				if (debug)
+					spdlog::debug("Possible result at {:08X}", memory.base + foundOffset);
 				if (checkSubpatterns(pattern, foundOffset, memory)) {
 					auto [isDecoded, result] = decodeResult(pattern, foundOffset, memory);
 					if (isDecoded) {
 						searchResults.push_back(result);
 
-						spdlog::debug("FOUND: address={:08X}, offset={:08X}", result.address, result.offset);
+						if (debug)
+							spdlog::debug("FOUND: address={:08X}, offset={:08X}", result.address, result.offset);
 
 						if (maxResults && searchResults.size() >= maxResults) {
-							spdlog::debug("Maximum search results are reached.");
+							if (debug)
+								spdlog::debug("Maximum search results are reached.");
 							break;
 						}
 
@@ -381,10 +410,12 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 							i -= align;
 						}
 					} else {
-						spdlog::debug("FAIL: can't decode result!");
+						if (debug)
+							spdlog::debug("FAIL: can't decode result!");
 					}
 				} else {
-					spdlog::debug("FAIL: sub patterns not matched.");
+					if (debug)
+						spdlog::debug("FAIL: sub patterns not matched.");
 				}
 			}
 		}
@@ -394,7 +425,9 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 }
 
 std::vector<Pattern::XRef> Pattern::finXRefs(uint32_t addr, const Memory &memory, size_t maxResults) {
-	spdlog::debug("Searching XRef's for {:08X}", addr);
+	bool debug = spdlog::should_log(spdlog::level::debug);
+	if (debug)
+		spdlog::debug("Searching XRef's for {:08X}", addr);
 	std::vector<XRef> searchResults;
 	for (size_t i = 0; i < memory.size; i += 2) {
 		bool isReference;
@@ -405,18 +438,22 @@ std::vector<Pattern::XRef> Pattern::finXRefs(uint32_t addr, const Memory &memory
 		std::tie(isBranchReference, branchAddr, std::ignore) = decodeBranchReference(i, memory);
 		auto [isPointer, ptrAddr] = decodePointer(i + memory.base, memory);
 		if (isBranchReference && (branchAddr & ~1) == (addr & ~1)) {
-			spdlog::debug("FOUND: branch at {:08X}", i + memory.base);
+			if (debug)
+				spdlog::debug("FOUND: branch at {:08X}", i + memory.base);
 			searchResults.push_back({ RESULT_TYPE_BRANCH, static_cast<uint32_t>(memory.base + i), static_cast<uint32_t>(i) });
 		} else if (isReference && (refAddr & ~1) == (addr & ~1)) {
-			spdlog::debug("FOUND: reference at {:08X}", i + memory.base);
+			if (debug)
+				spdlog::debug("FOUND: reference at {:08X}", i + memory.base);
 			searchResults.push_back({ RESULT_TYPE_REFERENCE, static_cast<uint32_t>(memory.base + i), static_cast<uint32_t>(i) });
 		} else if (isPointer && (ptrAddr & ~1) == (addr & ~1)) {
-			spdlog::debug("FOUND: pointer at {:08X}", i + memory.base);
+			if (debug)
+				spdlog::debug("FOUND: pointer at {:08X}", i + memory.base);
 			searchResults.push_back({ RESULT_TYPE_POINTER, static_cast<uint32_t>(memory.base + i), static_cast<uint32_t>(i) });
 		}
 
 		if (maxResults && searchResults.size() >= maxResults) {
-			spdlog::debug("Maximum search results are reached.");
+			if (debug)
+				spdlog::debug("Maximum search results are reached.");
 			break;
 		}
 	}

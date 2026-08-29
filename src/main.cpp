@@ -41,7 +41,9 @@ static std::string getResultBytesJSON(uint32_t offset, size_t resultSize, const 
 
 static json searchResultToJSON(const Pattern::SearchResult &result, ResultType type, const Pattern::Memory &memory) {
 	json item = { { "address", result.address } };
-	if (Pattern::inMemory(memory, result.address))
+	if (type == RESULT_TYPE_OFFSET)
+		item["offset"] = result.offset;
+	else if (Pattern::inMemory(memory, result.address))
 		item["offset"] = result.address - memory.base;
 	if (type == RESULT_TYPE_OFFSET)
 		item["bytes"] = getResultBytesJSON(result.offset, result.size, memory);
@@ -61,17 +63,19 @@ static const char *getTargetColumnName(ResultType type) {
 		case RESULT_TYPE_POINTER:
 			return "POINTER";
 		case RESULT_TYPE_REFERENCE:
-			return "REFERENCE";
+			return "ADDRESS";
 		case RESULT_TYPE_BRANCH:
-			return "BRANCH";
+			return "FUNCTION";
 		default:
 			return "ADDRESS";
 	}
 }
 
-static std::string getResultOffset(uint32_t address, const Pattern::Memory &memory) {
-	return Pattern::inMemory(memory, address) ?
-		std::format("{:08X}", address - memory.base) :
+static std::string getResultOffset(const Pattern::SearchResult &result, ResultType type, const Pattern::Memory &memory) {
+	if (type == RESULT_TYPE_OFFSET)
+		return std::format("{:08X}", result.offset);
+	return Pattern::inMemory(memory, result.address) ?
+		std::format("{:08X}", result.address - memory.base) :
 		"-";
 }
 
@@ -87,7 +91,7 @@ static void printResults(const std::vector<Pattern::SearchResult> &results, Resu
 	std::cout << '\n';
 
 	for (const auto &result: results) {
-		std::string offset = getResultOffset(result.address, memory);
+		std::string offset = getResultOffset(result, type, memory);
 		if (hasBytes) {
 			std::cout << std::format("  {:08X}  {:<8}  {}\n",
 				result.address, offset, getResultBytes(result.offset, result.size, memory, showBytes));

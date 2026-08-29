@@ -1,6 +1,6 @@
 {
 	"name": "@sie-js/ptr89",
-	"version": "3.0.1",
+	"version": "3.0.2",
 	"description": "ARM/THUMB/C166 binary pattern finder",
 	"type": "module",
 	"main": "dist/index.js",

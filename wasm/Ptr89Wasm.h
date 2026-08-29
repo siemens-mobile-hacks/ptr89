@@ -30,7 +30,8 @@ struct Ptr89XRef {
 
 class Ptr89Wasm {
 	private:
-		std::vector<uint8_t> m_data;
+		const uint8_t *m_data = nullptr;
+		size_t m_size = 0;
 		uint32_t m_base = 0;
 		Architecture m_arch = ARCH_ARM;
 		bool m_open = false;

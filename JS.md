@@ -87,9 +87,10 @@ interface Ptr89SearchResult {
 }
 ```
 
-`address` is the resolved address, pointer value or decoded target. `offset` is
-`address - base` and is omitted when `address` is outside the fullflash.
-`bytes` is returned only for a regular pattern result.
+`address` is the resolved address, pointer value or decoded target. For a
+regular pattern, `offset` points to the matched bytes. For other results it is
+`address - base` and is omitted when `address` is outside the fullflash. `bytes`
+is returned only for a regular pattern result.
 
 ### `findXRefs(address, limit?)`
 

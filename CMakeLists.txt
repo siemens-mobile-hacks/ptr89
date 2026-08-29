@@ -10,6 +10,11 @@ include_directories("./lib" "./third_party/argparse/include" "./third_party/json
 set(SPDLOG_USE_STD_FORMAT ON CACHE BOOL "" FORCE)
 set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
 set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+	set(SPDLOG_NO_ATOMIC_LEVELS ON CACHE BOOL "" FORCE)
+	set(SPDLOG_NO_THREAD_ID ON CACHE BOOL "" FORCE)
+	set(SPDLOG_NO_TLS ON CACHE BOOL "" FORCE)
+endif()
 add_subdirectory(third_party/spdlog EXCLUDE_FROM_ALL)
 
 set(LIB_SRC lib/src/Arch.cpp lib/src/Pattern.cpp lib/src/Tokenizer.cpp lib/src/Parser.cpp lib/src/utils.cpp)
@@ -20,6 +25,9 @@ target_link_libraries(ptr89-lib PUBLIC spdlog::spdlog)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
 	add_executable(ptr89_wasm wasm/main.cpp wasm/Ptr89Wasm.cpp)
+	set_target_properties(ptr89-lib spdlog PROPERTIES
+		INTERPROCEDURAL_OPTIMIZATION TRUE
+	)
 	set_target_properties(ptr89_wasm PROPERTIES
 		INTERPROCEDURAL_OPTIMIZATION TRUE
 		SUFFIX ".js"
