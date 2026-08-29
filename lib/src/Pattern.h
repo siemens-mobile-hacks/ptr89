@@ -12,6 +12,11 @@
 
 namespace Ptr89 {
 
+enum Architecture {
+	ARCH_ARM,
+	ARCH_C166,
+};
+
 enum PatternType {
 	PATTERN_TYPE_OFFSET,			// AB ?? CD ??, return offset of the finded bytes
 	PATTERN_TYPE_POINTER,			// *(AB ?? CD ??), use bytes as pointer
@@ -76,6 +81,7 @@ class Pattern {
 			const uint8_t *data;
 			size_t size;
 			int align = 1;
+			Architecture arch = ARCH_ARM;
 		};
 
 		struct SearchResult {
@@ -92,16 +98,10 @@ class Pattern {
 
 		static std::shared_ptr<PtrExp> parse(const std::string &pattern);
 		static std::string stringify(const std::shared_ptr<PtrExp> &pattern);
-		static int findAlignForPattern(const std::shared_ptr<PtrExp> &pattern, int align);
+		static int findAlignForPattern(const std::shared_ptr<PtrExp> &pattern, int align, Architecture architecture = ARCH_ARM);
 		static std::vector<SearchResult> find(const std::shared_ptr<PtrExp> &pattern, const Memory &memory, size_t maxResults = 0);
 		static std::vector<XRefSearchResult> finXRefs(uint32_t addr, const Memory &memory, size_t maxResults = 0);
 		static bool checkPattern(const std::shared_ptr<PtrExp> &pattern, size_t offset, const Memory &memory);
-		static std::tuple<bool, uint32_t, bool> decodeThumbBL(uint32_t offset, const uint8_t *bytes);
-		static std::tuple<bool, uint32_t, bool> decodeArmBL(uint32_t offset, const uint8_t *bytes);
-		static std::pair<bool, uint32_t> decodeThumbB(uint32_t offset, const uint8_t *bytes);
-		static std::pair<bool, uint32_t> decodeThumbLDR(uint32_t offset, const uint8_t *bytes);
-		static std::tuple<bool, uint32_t, bool> decodeArmLDR(uint32_t offset, const uint8_t *bytes);
-		static std::pair<bool, uint32_t> decodeArmThrunk(uint32_t offset, const uint8_t *bytes);
 		static std::pair<bool, uint32_t> decodeReference(uint32_t offset, const Memory &memory);
 		static std::pair<bool, uint32_t> decodeBranchReference(uint32_t offset, const Memory &memory);
 		static std::pair<bool, uint32_t> decodePointer(uint32_t addr, const Memory &memory);
@@ -137,16 +137,6 @@ class Pattern {
 		static bool fuzzyMatch(const uint8_t *bytes, const uint8_t *masks, int patternSize, const uint8_t *memory);
 		static std::pair<bool, Pattern::SearchResult> decodeResult(const std::shared_ptr<PtrExp> &pattern, uint32_t offset, const Memory &memory);
 
-		static inline uint32_t signExtend(uint32_t value, int from, int to) {
-			if ((value & (1 << (from - 1))) != 0) {
-				uint32_t mask = 0;
-				for (int i = from; i < to; i++)
-					mask |= 1 << i;
-				return mask | value;
-			} else {
-				return value;
-			}
-		}
 };
 
 }; // namespace Ptr89

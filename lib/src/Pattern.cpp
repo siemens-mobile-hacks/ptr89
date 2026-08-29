@@ -1,4 +1,5 @@
 #include "Pattern.h"
+#include "Arch.h"
 #include "Parser.h"
 #include <cstddef>
 #include <cstdint>
@@ -11,9 +12,6 @@
 #include "utils.h"
 
 namespace Ptr89 {
-
-static const char *MNEMONICS[] = { "EQ", "NE", "CS", "CC", "MI", "PL", "VS", "VC", "HI", "LS", "GE", "LT", "GT", "LE", "", "??" };
-static const char *REGNAMES[] = { "R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10", "R11", "R12", "SP", "LR", "PC" };
 
 Pattern::DebugHandlerFunc Pattern::m_debugHandler = nullptr;
 int Pattern::m_debugLevel = 0;
@@ -76,7 +74,7 @@ bool Pattern::checkPattern(const std::shared_ptr<PtrExp> &pattern, size_t offset
 		return false;
 	}
 
-	if (offset + patternSize >= memory.size) {
+	if (offset > memory.size || static_cast<size_t>(patternSize) > memory.size - offset) {
 		if (m_debugHandler)
 			debug("FAIL: Address %08" PRIu64 "X is out of range.\n", memory.base + offset);
 		debugSectionEnd();
@@ -109,136 +107,47 @@ bool Pattern::checkSubpatterns(const std::shared_ptr<PtrExp> &pattern, size_t of
 
 	debugSectionBegin();
 
+	const Arch &arch = getArch(memory.arch);
 	for (auto it: pattern->subPatterns) {
 		const SubPtrExp &p = it.second;
+		uint32_t address = memory.base + offset + p.offset;
+		const uint8_t *bytes = memory.data + offset + p.offset;
+		std::vector<uint32_t> decoded;
 
 		switch (p.type) {
 			case SUB_PATTERN_TYPE_BRANCH_2B:
 			{
-				if (m_debugHandler)
-					debug("Decoding THUMB B at %08" PRIu64 "X\n", memory.base + offset + p.offset);
-
-				auto [isThumb, thumbAddr] = decodeThumbB(memory.base + offset + p.offset, memory.data + offset + p.offset);
-				if (isThumb && inMemory(memory, thumbAddr, 4)) {
-					uint32_t fileOffset = thumbAddr - memory.base - p.pattern->inputOffset;
-					if (checkPattern(p.pattern, fileOffset, memory)) {
-						debugSectionEnd();
-						return true;
-					}
-				} else {
-					if (m_debugHandler)
-						debug("FAIL: not instruction!\n");
-				}
+				auto [success, branch] = arch.decodeBranch2(address, bytes, memory);
+				if (success)
+					decoded.push_back(branch);
 			}
-			break;
-
+				break;
 			case SUB_PATTERN_TYPE_BRANCH_4B:
 			{
-				if (m_debugHandler)
-					debug("Try decoding THUMB BL/BLX at %08" PRIu64 "X\n", memory.base + offset + p.offset);
-
-				auto [isThumb, thumbAddr, isThumbBLX] = decodeThumbBL(memory.base + offset + p.offset, memory.data + offset + p.offset);
-				if (isThumb && inMemory(memory, thumbAddr, 4)) {
-					thumbAddr = resolveThunks(thumbAddr, memory);
-					uint32_t fileOffset = thumbAddr - memory.base - p.pattern->inputOffset;
-					if (checkPattern(p.pattern, fileOffset, memory)) {
-						debugSectionEnd();
-						return true;
-					}
-				} else {
-					if (m_debugHandler)
-						debug("FAIL: not instruction!\n");
-				}
-
-				if (m_debugHandler)
-					debug("Try decoding ARM B/BL/BLX at %08" PRIu64 "X\n", memory.base + offset + p.offset);
-
-				auto [isArm, armAddr, isArmBLX] = decodeArmBL(memory.base + offset + p.offset, memory.data + offset + p.offset);
-				if (isArm && inMemory(memory, armAddr, 4)) {
-					armAddr = resolveThunks(armAddr, memory);
-					uint32_t fileOffset = armAddr - memory.base - p.pattern->inputOffset;
-					if (checkPattern(p.pattern, fileOffset, memory)) {
-						debugSectionEnd();
-						return true;
-					}
-				} else {
-					if (m_debugHandler)
-						debug("FAIL: not instruction!\n");
-				}
-
-				if (m_debugHandler)
-					debug("Try decoding ARM THRUNK at %08" PRIu64 "X\n", memory.base + offset + p.offset);
-
-				auto [isArmLdr, armLDR, isThunk] = decodeArmLDR(memory.base + offset + p.offset, memory.data + offset + p.offset);
-				if (isArmLdr && isThunk) {
-					auto [success, ptrAddr] = decodePointer(armLDR, memory);
-					if (success) {
-						ptrAddr = resolveThunks(ptrAddr, memory);
-						uint32_t fileOffset = ptrAddr - memory.base - p.pattern->inputOffset;
-						if (checkPattern(p.pattern, fileOffset, memory)) {
-							debugSectionEnd();
-							return true;
-						}
-					} else {
-						if (m_debugHandler)
-							debug("FAIL: invalid pointer!\n");
-					}
-				} else {
-					if (m_debugHandler)
-						debug("FAIL: not instruction!\n");
-				}
+				auto [success, branch] = arch.decodeBranch4(address, bytes, memory);
+				if (success)
+					decoded.push_back(arch.resolveThunks(branch, memory));
 			}
-			break;
-
+				break;
 			case SUB_PATTERN_TYPE_LDR_2B:
-			{
-				if (m_debugHandler)
-					debug("Try decoding THUMB LDR at %08" PRIu64 "X\n", memory.base + offset + p.offset);
-
-				auto [isThumbLdr, thumbLdrAddr] = decodeThumbLDR(memory.base + offset + p.offset, memory.data + offset + p.offset);
-				if (isThumbLdr) {
-					auto [success, ptrAddr] = decodePointer(thumbLdrAddr, memory);
-					if (success) {
-						uint32_t fileOffset = ptrAddr - memory.base - p.pattern->inputOffset;
-						if (checkPattern(p.pattern, fileOffset, memory)) {
-							debugSectionEnd();
-							return true;
-						}
-					} else {
-						if (m_debugHandler)
-							debug("FAIL: invalid pointer!\n");
-					}
-				} else {
-					if (m_debugHandler)
-						debug("FAIL: not instruction!\n");
-				}
-			}
-			break;
-
+				decoded = arch.decodeReferences2(address, bytes, memory);
+				break;
 			case SUB_PATTERN_TYPE_LDR_4B:
-			{
-				if (m_debugHandler)
-					debug("Try decoding ARM LDR at %08" PRIu64 "X\n", memory.base + offset + p.offset);
+				decoded = arch.decodeReferences4(address, bytes, memory);
+				break;
+		}
 
-				auto [isArmLdr, armLdrAddr, isArmThrunk] = decodeArmLDR(memory.base + offset + p.offset, memory.data + offset + p.offset);
-				if (isArmLdr) {
-					auto [success, ptrAddr] = decodePointer(armLdrAddr, memory);
-					if (success) {
-						uint32_t fileOffset = ptrAddr - memory.base - p.pattern->inputOffset;
-						if (checkPattern(p.pattern, fileOffset, memory)) {
-							debugSectionEnd();
-							return true;
-						}
-					} else {
-						if (m_debugHandler)
-							debug("FAIL: invalid pointer!\n");
-					}
-				} else {
-					if (m_debugHandler)
-						debug("FAIL: not instruction!\n");
-				}
+		for (uint32_t target: decoded) {
+			if (!inMemory(memory, target))
+				continue;
+			uint32_t fileOffset = target - memory.base - p.pattern->inputOffset;
+			if (checkPattern(p.pattern, fileOffset, memory)) {
+				debugSectionEnd();
+				return true;
 			}
-			break;
+		}
+		if (decoded.empty() && m_debugHandler) {
+			debug("FAIL: architecture instruction could not be decoded.\n");
 		}
 	}
 
@@ -248,99 +157,26 @@ bool Pattern::checkSubpatterns(const std::shared_ptr<PtrExp> &pattern, size_t of
 }
 
 std::pair<bool, uint32_t> Pattern::decodeReference(uint32_t offset, const Memory &memory) {
-	offset &= ~1;
-
-	debug("Try decoding ARM LDR at %08X\n", memory.base + offset);
-	auto [isARM, armLDR, isArmThrunk] = decodeArmLDR(memory.base + offset, memory.data + offset);
-	if (isARM) {
-		auto [success, addr] = decodePointer(armLDR, memory);
-		if (success)
-			return { true, addr };
-	}
-	debug("FAIL: not instruction!\n");
-
-	debug("Try decoding THUMB LDR at %08X\n", memory.base + offset);
-	auto [isThumb, thumbLDR] = decodeThumbLDR(memory.base + offset, memory.data + offset);
-	if (isThumb) {
-		auto [success, addr] = decodePointer(thumbLDR, memory);
-		if (success)
-			return { true, addr };
-	}
-	debug("FAIL: not instruction!\n");
-
-	return { false, 0 };
+	return getArch(memory.arch).decodeReference(offset, memory);
 }
 
 std::pair<bool, uint32_t> Pattern::decodeBranchReference(uint32_t offset, const Memory &memory) {
-	if (m_debugHandler)
-		debug("Try decoding THUMB BL/BLX at %08X\n", memory.base + offset);
-
-	auto [isThumb, thumbAddr, isThumbBLX] = decodeThumbBL(memory.base + offset, memory.data + offset);
-	if (isThumb && inMemory(memory, thumbAddr, 4)) {
-		thumbAddr = resolveThunks(thumbAddr, memory);
-		return { true, thumbAddr | (!isThumbBLX ? 1 : 0) };
-	} else {
-		if (m_debugHandler)
-			debug("FAIL: not instruction!\n");
-	}
-
-	if (m_debugHandler)
-		debug("Try decoding ARM B/BL/BLX at %08X\n", memory.base + offset);
-
-	auto [isArm, armAddr, isArmBLX] = decodeArmBL(memory.base + offset, memory.data + offset);
-	if (isArm && inMemory(memory, armAddr, 4)) {
-		armAddr = resolveThunks(armAddr, memory);
-		return { true, armAddr | (isArmBLX ? 1 : 0) };
-	} else {
-		if (m_debugHandler)
-			debug("FAIL: not instruction!\n");
-	}
-
-	if (m_debugHandler)
-		debug("Try decoding ARM THRUNK at %08X\n", memory.base + offset);
-
-	auto [isArmLdr, armLDR, isThunk] = decodeArmLDR(memory.base + offset, memory.data + offset);
-	if (isArmLdr && isThunk) {
-		auto [success, ptrAddr] = decodePointer(armLDR, memory);
-		if (success) {
-			ptrAddr = resolveThunks(ptrAddr, memory);
-			return { true, ptrAddr };
-		} else {
-			if (m_debugHandler)
-				debug("FAIL: invalid pointer!\n");
-		}
-	} else {
-		if (m_debugHandler)
-			debug("FAIL: not instruction!\n");
-	}
-
-	return { false, 0 };
+	return getArch(memory.arch).decodeBranchReference(offset, memory);
 }
 
 std::pair<bool, uint32_t> Pattern::decodePointer(uint32_t addr, const Memory &memory) {
 	debug("Try decoding pointer at %08X\n", addr);
-	if (inMemory(memory, addr, 4)) {
-		uint32_t value = *reinterpret_cast<const uint32_t *>(memory.data + (addr - memory.base));
+	auto [success, value] = getArch(memory.arch).decodePointer(addr, memory);
+	if (success) {
 		debug("Pointer address: %08X\n", value);
 		return { true, value };
-	} else {
-		debug("FAIL: address is out of memory range!\n");
 	}
+	debug("FAIL: address is out of memory range!\n");
 	return { false, 0 };
 }
 
 uint32_t Pattern::resolveThunks(uint32_t addr, const Memory &memory) {
-	if (inMemory(memory, addr, 4)) {
-		auto [isArmLdr, ldrAddr, isThunk] = decodeArmLDR(addr, memory.data + (addr - memory.base));
-		if (isThunk && inMemory(memory, ldrAddr)) {
-			uint32_t value = *reinterpret_cast<const uint32_t *>(memory.data + (ldrAddr - memory.base));
-			if (inMemory(memory, value)) {
-				debug("Found thrunk at %08X: PC->%08X\n", addr, value);
-				return resolveThunks(value, memory);
-			}
-		}
-	}
-	return addr;
+	return getArch(memory.arch).resolveThunks(addr, memory);
 }
 
 std::pair<bool, Pattern::SearchResult> Pattern::decodeResult(const std::shared_ptr<PtrExp> &pattern, uint32_t offset, const Memory &memory) {
@@ -349,12 +185,7 @@ std::pair<bool, Pattern::SearchResult> Pattern::decodeResult(const std::shared_p
 	switch (pattern->type) {
 		case PATTERN_TYPE_OFFSET:
 		{
-			uint32_t value = address;
-			if ((address & 1) == 0 && inMemory(memory, address, 4)) {
-				uint16_t instr = *reinterpret_cast<const uint16_t *>(memory.data + offset);
-				if ((instr & 0xFE00) == 0xB400) // PUSH
-					value |= 1;
-			}
+			uint32_t value = getArch(memory.arch).offsetValue(address, offset, memory);
 			return { true, { address, offset, value } };
 		}
 		break;
@@ -390,7 +221,7 @@ std::pair<bool, Pattern::SearchResult> Pattern::decodeResult(const std::shared_p
 	return { false, { } };
 }
 
-int Pattern::findAlignForPattern(const std::shared_ptr<PtrExp> &pattern, int align) {
+int Pattern::findAlignForPattern(const std::shared_ptr<PtrExp> &pattern, int align, Architecture architecture) {
 	if (pattern->type == PATTERN_TYPE_BRANCH_REFERENCE) {
 		align = std::max(align, 2);
 	} else if (pattern->type == PATTERN_TYPE_REFERENCE) {
@@ -417,8 +248,11 @@ int Pattern::findAlignForPattern(const std::shared_ptr<PtrExp> &pattern, int ali
 			break;
 
 			case SUB_PATTERN_TYPE_LDR_4B:
-				if ((offset % 4) == 0)
-					align = std::max(align, 4);
+			{
+				int instructionAlign = getArch(architecture).reference4Align();
+				if ((offset % instructionAlign) == 0)
+					align = std::max(align, instructionAlign);
+			}
 			break;
 		}
 	}
@@ -449,6 +283,10 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 		debug("FAIL: empty pattern!\n");
 		return searchResults;
 	}
+	if (static_cast<size_t>(patternSize) > memory.size) {
+		debug("FAIL: pattern is larger than memory!\n");
+		return searchResults;
+	}
 
 	// Wildcard optimization
 	for (int i = 0; i < patternSize; i++) {
@@ -460,7 +298,7 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 	}
 
 	// Align optimization
-	int align = findAlignForPattern(pattern, memory.align);
+	int align = findAlignForPattern(pattern, memory.align, memory.arch);
 	if (align != 1)
 		firstNonWildcardByte = 0;
 
@@ -669,121 +507,6 @@ std::string Pattern::stringify(const std::shared_ptr<PtrExp> &pattern) {
 		patternText += strprintf(" %c 0x%X", pattern->inputOffset < 0 ? '-' : '+', abs(pattern->outputOffset));
 
 	return patternText;
-}
-
-std::tuple<bool, uint32_t, bool> Pattern::decodeThumbBL(uint32_t offset, const uint8_t *bytes) {
-	uint16_t thumb_instr1 = (bytes[1] << 8) | bytes[0];
-	uint16_t thumb_instr2 = (bytes[3] << 8) | bytes[2];
-
-	if ((offset % 2) != 0)
-		return { false, 0, false };
-
-	if ((thumb_instr1 & 0xF800) == 0xF000 && (thumb_instr2 & 0xF800) == 0xE800) {
-		int32_t offset11_a = (int32_t) (signExtend(thumb_instr1 & 0x7FF, 11, 32) << 12);
-		uint32_t offset11_b = (thumb_instr2 & 0x7FF) << 1;
-		uint32_t addr = (offset + 4 + offset11_a + offset11_b) & 0xFFFFFFFC;
-		debug("%08X: %02X %02X %02X %02X  BLX #0x%08X\n", offset, bytes[0], bytes[1], bytes[2], bytes[3], addr);
-		return { true, addr, true };
-	} else if ((thumb_instr1 & 0xF800) == 0xF000 && (thumb_instr2 & 0xF800) == 0xF800) {
-		int32_t offset11_a = (int32_t) (signExtend(thumb_instr1 & 0x7FF, 11, 32) << 12);
-		uint32_t offset11_b = (thumb_instr2 & 0x7FF) << 1;
-		uint32_t addr = (offset + 4 + offset11_a + offset11_b);
-		debug("%08X: %02X %02X %02X %02X  BL #0x%08X\n", offset, bytes[0], bytes[1], bytes[2], bytes[3], addr);
-		return { true, addr, false };
-	}
-
-	return { false, 0, false };
-}
-
-std::tuple<bool, uint32_t, bool> Pattern::decodeArmBL(uint32_t offset, const uint8_t *bytes) {
-	uint32_t instr = (bytes[3] << 24) | (bytes[2] << 16) | (bytes[1] << 8) | bytes[0];
-
-	if ((offset % 4) != 0)
-		return { false, 0, false };
-
-	if (((instr & 0xFE000000) == 0xFA000000)) {
-		int32_t offset24 = (int32_t) (signExtend(instr & 0xFFFFFF, 24, 30) << 2U);
-		uint32_t H = (instr & 0x01000000) != 0 ? 1 : 0;
-		uint32_t addr = (offset + 8 + offset24) + (H << 1);
-		debug("%08X: %02X %02X %02X %02X  BLX #0x%08X\n", offset, bytes[0], bytes[1], bytes[2], bytes[3], addr);
-		return { true, addr, true };
-	} else if (((instr & 0x0F000000) == 0x0B000000) || ((instr & 0x0F000000) == 0x0A000000)) {
-		int32_t offset24 = (int32_t) (signExtend(instr & 0xFFFFFF, 24, 30) << 2U);
-		uint32_t addr = (offset + 8 + offset24);
-		if (m_debugHandler) {
-			uint32_t cond = (instr & 0xF0000000) >> 28;
-			uint32_t L = (instr & 0x0F000000) == 0x0B000000;
-			debug("%08X: %02X %02X %02X %02X  B%s%s #0x%08X\n", offset, bytes[0], bytes[1], bytes[2], bytes[3], L ? "L" : "", MNEMONICS[cond], addr);
-		}
-		return { true, addr, false };
-	}
-
-	return { false, 0, false };
-}
-
-std::pair<bool, uint32_t> Pattern::decodeThumbB(uint32_t offset, const uint8_t *bytes) {
-	uint16_t instr = (bytes[1] << 8) | bytes[0];
-
-	if ((offset % 2) != 0)
-		return { false, 0 };
-
-	if ((instr & 0xF800) == 0xE000) {
-		int32_t offset11 = (int32_t) (signExtend(instr & 0x7FF, 11, 32) << 1);
-		uint32_t addr = offset + 4 + offset11;
-		debug("%08X: %02X %02X        B #0x%08X\n", offset, bytes[0], bytes[1], addr);
-		return { true, addr };
-	} else if ((instr & 0xF000) == 0xD000) {
-		int32_t offset8 = (int32_t) (signExtend(instr & 0xFF, 8, 32) << 1);
-		uint32_t addr = offset + 4 + offset8;
-		if (m_debugHandler) {
-			uint32_t cond = (instr & 0x0F00) >> 8;
-			debug("%08X: %02X %02X        B%s #0x%08X\n", offset, bytes[0], bytes[1], MNEMONICS[cond], addr);
-		}
-		return { true, addr };
-	}
-
-	return { false, 0 };
-}
-
-std::pair<bool, uint32_t> Pattern::decodeThumbLDR(uint32_t offset, const uint8_t *bytes) {
-	uint16_t instr1 = (bytes[1] << 8) | bytes[0];
-
-	if ((offset % 2) != 0)
-		return { false, 0 };
-
-	if ((instr1 & 0xF800) == 0x4800) {
-		uint32_t instr1_offset8 = (instr1 & 0xFF) << 2;
-		uint32_t instr1_Rd = (instr1 & 0x700) >> 8;
-		uint32_t addr = offset + (offset % 4 == 0 ? 4 : 2) + instr1_offset8;
-		debug("%08X: %02X %02X        LDR %s, [PC, #0x%X] ; 0x%08X\n", offset, bytes[0], bytes[1], REGNAMES[instr1_Rd], instr1_offset8, addr);
-		return { true, addr };
-	}
-
-	return { false, 0 };
-}
-
-std::tuple<bool, uint32_t, bool> Pattern::decodeArmLDR(uint32_t offset, const uint8_t *bytes) {
-	uint32_t instr = (bytes[3] << 24) | (bytes[2] << 16) | (bytes[1] << 8) | bytes[0];
-
-	if ((offset % 4) != 0)
-		return { false, 0, false };
-
-	if ((instr & 0xE0F0000) == 0x40F0000) { // Immediate offset/index
-		int32_t U = (instr & (1 << 23)) != 0;
-		int32_t offset_12 = U ? (instr & 0xFFFU) : -(instr & 0xFFFU);
-		uint32_t addr = offset + 8 + offset_12;
-		uint32_t Rd = (instr & 0xF000) >> 12;
-
-		if (m_debugHandler) {
-			uint32_t cond = (instr & 0xF0000000) >> 28;
-			debug("%08X: %02X %02X %02X %02X  LDR%s %s, [PC, #%c0x%X] ; 0x%08X\n", offset, bytes[0], bytes[1], bytes[2], bytes[3],
-					MNEMONICS[cond], REGNAMES[Rd], U ? '+' : '-', abs(offset_12), addr);
-		}
-
-		return { true, addr, Rd == 0xF };
-	}
-
-	return { false, 0, false };
 }
 
 void Pattern::debug(const char *format, ...) {

@@ -7,6 +7,8 @@
 using json = nlohmann::json;
 using namespace Ptr89;
 
+static constexpr uint64_t C166_ADDRESS_SPACE_SIZE = 0x1000000;
+
 int main(int argc, char *argv[]) {
 	argparse::ArgumentParser program("ptr89", "1.0.4");
 
@@ -14,7 +16,10 @@ int main(int argc, char *argv[]) {
 		.required()
 		.nargs(1);
 	program.add_argument("-b", "--base")
-		.default_value("A0000000")
+		.default_value("")
+		.nargs(1);
+	program.add_argument("-A", "--arch")
+		.default_value("arm")
 		.nargs(1);
 	program.add_argument("-a", "--align")
 		.default_value(1)
@@ -57,7 +62,8 @@ int main(int argc, char *argv[]) {
 		std::cerr << "Global options:\n";
 		std::cerr << "  -h, --help               show this help\n";
 		std::cerr << "  -f, --file FILE          fullflash file [required]\n";
-		std::cerr << "  -b, --base HEX           fullflash base address [default: A0000000]\n";
+		std::cerr << "  -b, --base HEX           fullflash base address [default: A0000000 for arm, auto for c166]\n";
+		std::cerr << "  -A, --arch ARCH          architecture: arm or c166 [default: arm]\n";
 		std::cerr << "  -a, --align N            search align [default: 1]\n";
 		std::cerr << "  -V, --verbose            enable debug\n";
 		std::cerr << "  -J, --json               output as JSON\n";
@@ -91,13 +97,35 @@ int main(int argc, char *argv[]) {
 		if (program.get<bool>("--verbose"))
 			Pattern::setDebugHandler(vprintf);
 
-		uint32_t memoryBase = stoll(program.get<std::string>("--base"), NULL, 16);
+		auto archName = program.get<std::string>("--arch");
+		Architecture arch;
+		if (archName == "arm") {
+			arch = ARCH_ARM;
+		} else if (archName == "c166") {
+			arch = ARCH_C166;
+		} else {
+			throw std::runtime_error("Invalid architecture '" + archName + "'. Expected arm or c166.");
+		}
+
 		int memoryAlign = program.get<int>("--align");
 		if (memoryAlign <= 0)
 			throw std::runtime_error("Invalid align value.");
 
 		auto [memory, memorySize] = readBinaryFile(program.get<std::string>("--file"));
-		Pattern::Memory memoryRegion = { memoryBase, memory, memorySize, memoryAlign };
+		std::unique_ptr<uint8_t[]> memoryHolder(memory);
+
+		uint32_t memoryBase;
+		if (program.is_used("--base")) {
+			memoryBase = stoll(program.get<std::string>("--base"), NULL, 16);
+		} else if (arch == ARCH_C166) {
+			if (memorySize > C166_ADDRESS_SPACE_SIZE)
+				throw std::runtime_error("C166 fullflash is larger than the 16 MiB address space; specify --base explicitly.");
+			memoryBase = static_cast<uint32_t>(C166_ADDRESS_SPACE_SIZE - memorySize);
+		} else {
+			memoryBase = 0xA0000000;
+		}
+
+		Pattern::Memory memoryRegion = { memoryBase, memory, memorySize, memoryAlign, arch };
 
 		auto asJSON = program.get<bool>("--json");
 		if (program.is_used("--pattern")) {
@@ -137,7 +165,7 @@ int main(int argc, char *argv[]) {
 					j["patterns"].push_back(patternJson);
 				} else {
 					printf("Pattern: '%s'\n", patternStr.c_str());
-					printf("Found %" PRIu64 "d matches:\n", results.size());
+					printf("Found %" PRIu64 " matches:\n", results.size());
 					for (auto &result: results) {
 						if (pattern->type == PATTERN_TYPE_OFFSET) {
 							printf("  %08X: %08X (offset)\n", result.address, result.value);
@@ -185,7 +213,7 @@ int main(int argc, char *argv[]) {
 				}
 			} else {
 				printf("Searching x-refs for %08X\n", addr);
-				printf("Found %" PRIu64 "d matches:\n", results.size());
+				printf("Found %" PRIu64 " matches:\n", results.size());
 				for (auto &result: results) {
 					if (result.type == XREF_TYPE_REFERENCE) {
 						printf("  %08X (reference)\n", result.address);
@@ -267,7 +295,6 @@ int main(int argc, char *argv[]) {
 			printf("%s\n", j.dump(2).c_str());
 		}
 
-		delete[] memory;
 	} catch (const std::exception &err) {
 		if (program.get<bool>("--json")) {
 			j["error"] = err.what();

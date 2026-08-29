@@ -6,7 +6,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
 include_directories("./lib" "./third_party/argparse/include" "./third_party/json/include")
 
-set(LIB_SRC lib/src/Pattern.cpp lib/src/Tokenizer.cpp lib/src/Parser.cpp lib/src/utils.cpp)
+set(LIB_SRC lib/src/Arch.cpp lib/src/Pattern.cpp lib/src/Tokenizer.cpp lib/src/Parser.cpp lib/src/utils.cpp)
 
 add_executable(ptr89 src/main.cpp ${LIB_SRC})
 target_precompile_headers(ptr89 PRIVATE <argparse/argparse.hpp> <nlohmann/json.hpp> <string> <vector> <memory> <regex> <map> <tuple> <stdexcept>)

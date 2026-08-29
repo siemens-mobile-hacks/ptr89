@@ -1,6 +1,6 @@
 # Ptr89
 
-There is yet another ARM/THUMB pattern finder.
+There is yet another ARM/THUMB/C166 pattern finder.
 
 Main features:
 - Compatible with [Smelter](https://web.archive.org/web/20090414122112/http://avkiev.kiev.ua/Siemens/Smelter/Smelter.htm) patterns syntax.
@@ -45,7 +45,8 @@ Usage: ptr89 [arguments]
 Global options:
   -h, --help               show this help
   -f, --file FILE          fullflash file [required]
-  -b, --base HEX           fullflash base address [default: A0000000]
+  -b, --base HEX           fullflash base address [default: A0000000 for arm, auto for c166]
+  -A, --arch ARCH          architecture: arm or c166 [default: arm]
   -a, --align N            search align [default: 1]
   -V, --verbose            enable debug
   -J, --json               output as JSON
@@ -63,6 +64,29 @@ Find patterns from functions.ini:
 
 Prettify pattern:
   --prettify STRING        pattern
+```
+
+### C166 fullflash
+
+Select C166 with `-A c166` or `--arch c166`. If `--base` is omitted, the image is placed at the top of the 16 MiB C166 address space:
+
+```
+base = 16 * 1024 * 1024 - fullflash_size
+```
+
+For example, a 14 MiB M55 fullflash gets base `0x200000`. An explicit `--base` always overrides this calculation.
+
+```bash
+# F0 C8        MOV R12, R8
+# F0 D9        MOV R13, R9
+# DA 25 72 93  CALLS 0x25, 0x9372 -> 0x259372
+# F0 C8        MOV R12, R8
+# F0 D9        MOV R13, R9
+# DA 9A 32 93  CALLS 0x9A, 0x9332 -> 0x9A9332
+$ ptr89 -f M55_v91.bin -A c166 -p '&BL(F0C8F0D9DA257293F0C8F0D9DA9A3293 + C)'
+Pattern: '&BL(F0C8F0D9DA257293F0C8F0D9DA9A3293 + C)'
+Found 1 matches:
+  00259254: 009A9332 (branch)
 ```
 
 ### Find x-refs
@@ -168,6 +192,8 @@ Steps:
 ## Decode as pointer
 Decoding a pointer value from the bytes found by the pattern.
 
+With `--arch c166`, a four-byte code pointer is decoded as a little-endian 16-bit segment offset followed by an 8-bit segment number. The padding byte is ignored.
+
 Syntax:
 ```bash
 *( subPattern )
@@ -191,7 +217,9 @@ Steps:
 3. Result is `0xA8D95BCC + 0x2 = 0xA8D95BCE`
 
 ## Decode as reference
-Emulating ARM/THUMB `LDR Rd, [PC, #offset]` instruction found by the pattern.
+Emulating an ARM/THUMB `LDR Rd, [PC, #offset]` instruction found by the pattern.
+
+The `&(...)` operator remains ARM-specific. C166 register-pair references are supported by the `LDR{...}` nested form described below.
 
 Syntax:
 ```bash
@@ -220,7 +248,7 @@ Steps:
 3. Result is `0xA8E69710 + 0x4 = 0xA8E69714`
 
 ## Decode as BL address
-Emulating ARM/THUMB `B/BL/BLX` or `LDR PC, [PC, #offset]` instructions found by the pattern.
+Emulating an architecture-specific direct branch instruction found by the pattern. ARM/THUMB supports `B/BL/BLX` and `LDR PC, [PC, #offset]`. C166 supports `CALLA/CALLR/CALLS/PCALL`, `JMPA/JMPR/JMPS`, and the four-byte bit branches.
 
 Syntax:
 ```bash
@@ -248,11 +276,11 @@ Follow the branch and checking it for a pattern.
 
 Syntax:
 ```bash
-# ARM B/BL/BLX or THUMB BL/BLX (4 bytes instruction)
+# ARM B/BL/BLX, THUMB BL/BLX, or C166 CALLA/CALLS/PCALL/JMPA/JMPS/JB/JNB/JBC/JNBS
 { subPattern }
 _BLF(subPattern) # alias for { }
 
-# THUMB B (2 bytes instruction)
+# THUMB B or a 2-byte C166 CALLR/JMPR
 [ subPattern ]
 ```
 
@@ -267,6 +295,21 @@ LDR PC, [PC, #offset]
 # THUMB
 BL #offset
 BLX #offset
+
+# C166 (4 bytes)
+CALLA cc, caddr
+CALLS seg, caddr
+PCALL reg, caddr
+JMPA cc, caddr
+JMPS seg, caddr
+JB bitaddr, rel
+JNB bitaddr, rel
+JBC bitaddr, rel
+JNBS bitaddr, rel
+
+# C166 (2 bytes)
+CALLR rel
+JMPR cc, rel
 ```
 
 For example:
@@ -327,10 +370,10 @@ Follow the reference and checking it for a pattern.
 
 Syntax:
 ```bash
-# ARM LDR (4 bytes instruction)
+# ARM LDR or the first MOV of a C166 pointer pair (4-byte instruction)
 LDR{ subPattern }
 
-# THUMB LDR (2 bytes instruction)
+# THUMB LDR (2-byte instruction; not supported for C166)
 LDR[ subPattern ]
 ```
 
@@ -338,11 +381,28 @@ Supported instructions:
 ```
 # ARM/THUMB
 LDR Rd, [PC, #offset]
+
+# C166 large model: huge/code pointer
+MOV Rn, #SOF(target)
+MOV Rn+1, #SEG(target)
+
+# C166 large model: far data pointer
+MOV Rn, #POF(target)
+MOV Rn+1, #PAG(target)
 ```
+
+The two C166 `MOV` instructions must be adjacent and `Rn` must be even. `LDR{...}` occupies the first four-byte `MOV`; the following `SEG`/`PAG` load is inspected to reconstruct the linear address. When the raw operands are valid both as a far data pointer and as a huge/code pointer, the nested pattern is checked at both addresses.
 
 For example:
 ```bash
 LDR{ 436f70797269676874204d47432032303034 } 1e ff 2f e1
+
+# M55 at 0x207680:
+# E6 FC 8C 75  MOV R12, #0x758C = SOF(0x20758C)
+# E6 FD 20 00  MOV R13, #0x20   = SEG(0x20758C)
+# Target at 0x20758C:
+# E6 00 07 00  MOV DPP0, #7
+LDR{ E6000700 } E6FD2000
 ```
 
 Steps:
