@@ -9,17 +9,17 @@
 
 namespace Ptr89 {
 
-struct WasmPatternSearchResult {
-	std::string type;
+struct Ptr89SearchResult {
 	uint32_t address;
 	uint32_t offset;
-	uint32_t value;
+	std::string bytes;
 };
 
-struct WasmXRefSearchResult {
+struct Ptr89XRef {
 	std::string type;
-	uint32_t address;
+	uint32_t xref;
 	uint32_t offset;
+	std::string bytes;
 };
 
 class Ptr89Wasm {
@@ -38,8 +38,8 @@ class Ptr89Wasm {
 		void open(uintptr_t ptr, size_t size, uint32_t base, int align, const std::string &archName);
 		void close();
 		void setDebug(bool enabled);
-		std::vector<WasmPatternSearchResult> find(const std::string &patternText, size_t limit) const;
-		std::vector<WasmXRefSearchResult> findXRefs(uint32_t address, size_t limit) const;
+		std::vector<Ptr89SearchResult> find(const std::string &patternText, size_t limit) const;
+		std::vector<Ptr89XRef> findXRefs(uint32_t address, size_t limit) const;
 };
 
 std::string prettify(const std::string &pattern);

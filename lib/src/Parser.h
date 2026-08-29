@@ -20,7 +20,7 @@ class Parser {
 		void parseBinMask();
 		bool parsePatternData();
 		void parsePatternBody();
-		void parseStaticValue();
+		void parseFixedAddress();
 		int parseOffset();
 		void skipWhitespaces();
 		void expectToken(Tokenizer::TokenType tokenType);

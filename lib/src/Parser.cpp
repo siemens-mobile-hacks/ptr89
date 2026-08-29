@@ -22,7 +22,7 @@ std::shared_ptr<PtrExp> Parser::parse(const std::string &input) {
 		break;
 
 		case Tokenizer::TOK_VALUE_OPEN:
-			parseStaticValue();
+			parseFixedAddress();
 		break;
 
 		case Tokenizer::TOK_PAREN_OPEN:	// (...)
@@ -47,7 +47,7 @@ std::shared_ptr<PtrExp> Parser::parse(const std::string &input) {
 	return std::make_shared<PtrExp>(m_pattern);
 }
 
-void Parser::parseStaticValue() {
+void Parser::parseFixedAddress() {
 	expectToken(Tokenizer::TOK_VALUE_OPEN);
 	m_tok.next();
 
@@ -55,8 +55,8 @@ void Parser::parseStaticValue() {
 
 	expectToken(Tokenizer::TOK_HEX);
 
-	m_pattern.type = PATTERN_TYPE_STATIC_VALUE;
-	m_pattern.staticValue = getTokenUInt(m_tok.peek());
+	m_pattern.type = RESULT_TYPE_ADDRESS;
+	m_pattern.fixedAddress = getTokenUInt(m_tok.peek());
 
 	m_tok.next();
 
@@ -68,11 +68,11 @@ void Parser::parseStaticValue() {
 
 void Parser::parseReferenceOrPointer() {
 	if (m_tok.peek().type == Tokenizer::TOK_POINTER) {
-		m_pattern.type = PATTERN_TYPE_POINTER;
+		m_pattern.type = RESULT_TYPE_POINTER;
 	} else if (m_tok.peek().type == Tokenizer::TOK_BRANCH_REFERENCE) {
-		m_pattern.type = PATTERN_TYPE_BRANCH_REFERENCE;
+		m_pattern.type = RESULT_TYPE_BRANCH;
 	} else {
-		m_pattern.type = PATTERN_TYPE_REFERENCE;
+		m_pattern.type = RESULT_TYPE_REFERENCE;
 	}
 
 	m_tok.next();
@@ -89,7 +89,7 @@ void Parser::parseReferenceOrPointer() {
 }
 
 void Parser::parseOffsetPattern() {
-	m_pattern.type = PATTERN_TYPE_OFFSET;
+	m_pattern.type = RESULT_TYPE_OFFSET;
 	parsePatternBody();
 }
 

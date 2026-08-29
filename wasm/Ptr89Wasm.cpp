@@ -1,37 +1,20 @@
 #include "Ptr89Wasm.h"
 
+#include <algorithm>
+#include <format>
 #include <stdexcept>
 
 #include <spdlog/spdlog.h>
 
 namespace Ptr89 {
 
-static const char *getPatternTypeName(PatternType type) {
-	switch (type) {
-		case PATTERN_TYPE_OFFSET:
-			return "offset";
-		case PATTERN_TYPE_POINTER:
-			return "pointer";
-		case PATTERN_TYPE_REFERENCE:
-			return "reference";
-		case PATTERN_TYPE_BRANCH_REFERENCE:
-			return "branch";
-		case PATTERN_TYPE_STATIC_VALUE:
-			return "static_value";
-	}
-	throw std::invalid_argument("Invalid pattern type.");
-}
-
-static const char *getXRefTypeName(XRefType type) {
-	switch (type) {
-		case XREF_TYPE_REFERENCE:
-			return "reference";
-		case XREF_TYPE_BRANCH_CALL:
-			return "branch";
-		case XREF_TYPE_POINTER:
-			return "pointer";
-	}
-	throw std::invalid_argument("Invalid x-ref type.");
+static std::string getBytes(uint32_t offset, size_t size, const Pattern::Memory &memory) {
+	std::string bytes;
+	size = offset < memory.size ? std::min(size, memory.size - offset) : 0;
+	bytes.reserve(size * 2);
+	for (size_t i = 0; i < size; i++)
+		bytes += std::format("{:02X}", memory.data[offset + i]);
+	return bytes;
 }
 
 Ptr89Wasm::Ptr89Wasm() {
@@ -74,24 +57,26 @@ void Ptr89Wasm::setDebug(bool enabled) {
 	spdlog::set_level(enabled ? spdlog::level::debug : spdlog::level::warn);
 }
 
-std::vector<WasmPatternSearchResult> Ptr89Wasm::find(const std::string &patternText, size_t limit) const {
+std::vector<Ptr89SearchResult> Ptr89Wasm::find(const std::string &patternText, size_t limit) const {
 	auto memory = getMemory();
 	auto pattern = Pattern::parse(patternText);
 	auto matches = Pattern::find(pattern, memory, limit);
 
-	std::vector<WasmPatternSearchResult> results;
+	std::vector<Ptr89SearchResult> results;
 	results.reserve(matches.size());
 	for (const auto &match: matches)
-		results.push_back({ getPatternTypeName(pattern->type), match.address, match.offset, match.value });
+		results.push_back({ match.address, match.offset, getBytes(match.offset, match.size, memory) });
 	return results;
 }
 
-std::vector<WasmXRefSearchResult> Ptr89Wasm::findXRefs(uint32_t address, size_t limit) const {
-	auto matches = Pattern::finXRefs(address, getMemory(), limit);
-	std::vector<WasmXRefSearchResult> results;
+std::vector<Ptr89XRef> Ptr89Wasm::findXRefs(uint32_t address, size_t limit) const {
+	auto memory = getMemory();
+	auto matches = Pattern::finXRefs(address, memory, limit);
+	std::vector<Ptr89XRef> results;
 	results.reserve(matches.size());
 	for (const auto &match: matches)
-		results.push_back({ getXRefTypeName(match.type), match.address, match.offset });
+		results.push_back({ Pattern::getResultTypeName(match.type), match.address, match.offset,
+			getBytes(match.offset, match.size, memory) });
 	return results;
 }
 

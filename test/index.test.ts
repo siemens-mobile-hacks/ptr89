@@ -10,21 +10,37 @@ describe("Ptr89 WASM", () => {
 			0x00, 0xBF,			// NOP
 			0x08, 0x00, 0x00, 0xA0,	// Pointer to 0xA0000008
 			0x00, 0xBF,			// NOP at 0xA0000008
+			0x10, 0xB5,			// PUSH {R4, LR} at 0xA000000A
 		]);
 		const ptr89 = new Ptr89();
 		await ptr89.open(memory, { arch: "arm" });
 
 		expect(ptr89.find("LDR[ 00BF ]", 1)).toEqual([{
-			type: "offset",
 			address: 0xA0000000,
 			offset: 0,
-			value: 0xA0000000,
+			bytes: "0048",
+		}]);
+		expect(ptr89.find("&(00 48)", 1)).toEqual([{
+			address: 0xA0000008,
+			offset: 0,
+			bytes: "0048",
+		}]);
+		expect(ptr89.find("*(08 00 00 A0)", 1)).toEqual([{
+			address: 0xA0000008,
+			offset: 4,
+			bytes: "080000A0",
 		}]);
 		expect(ptr89.findXRefs(0xA0000008, 10)).toContainEqual({
 			type: "reference",
-			address: 0xA0000000,
+			xref: 0xA0000000,
 			offset: 0,
+			bytes: "0048",
 		});
+		expect(ptr89.find("10 B5", 1)).toEqual([{
+			address: 0xA000000B,
+			offset: 10,
+			bytes: "10B5",
+		}]);
 
 		ptr89.close();
 	});
@@ -39,10 +55,17 @@ describe("Ptr89 WASM", () => {
 		await ptr89.open(memory, { arch: "c166" });
 
 		expect(ptr89.find("[ DB00 ]", 1)).toEqual([{
-			type: "offset",
 			address: 0xFFFFFA,
 			offset: 0,
-			value: 0xFFFFFA,
+			bytes: "0D01",
+		}]);
+		expect(ptr89.find("&BL(0D01)", 1)).toEqual([{
+			address: 0xFFFFFE,
+			offset: 0,
+			bytes: "0D01",
+		}]);
+		expect(ptr89.find("<123456>", 1)).toEqual([{
+			address: 0x123456,
 		}]);
 
 		ptr89.close();
@@ -50,6 +73,9 @@ describe("Ptr89 WASM", () => {
 
 	it("prettifies patterns", async () => {
 		await expect(prettify("00bf")).resolves.toBe("00 BF");
+		await expect(prettify("&BL(00bf) ")).resolves.toBe("&BL(00 BF)");
+		await expect(prettify("<123456>")).resolves.toBe("< 00123456 >");
+		await expect(prettify("LDR[ 00bf ] cc")).resolves.toBe("LDR[ 00 BF ] CC");
 		await expect(prettify("GG")).rejects.toThrow("Syntax error");
 	});
 });

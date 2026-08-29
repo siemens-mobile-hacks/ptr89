@@ -161,42 +161,44 @@ class ArmArch final: public Arch {
 			return success ? std::vector<uint32_t>{ pointer } : std::vector<uint32_t>{ };
 		}
 
-		std::pair<bool, uint32_t> decodeReference(uint32_t offset, const Pattern::Memory &memory) const override {
+		std::tuple<bool, uint32_t, size_t> decodeReference(uint32_t offset, const Pattern::Memory &memory) const override {
 			offset &= ~1U;
 			if (offset + 2 > memory.size)
-				return { false, 0 };
+				return { false, 0, 0 };
 
 			if (offset + 4 <= memory.size) {
 				auto references = decodeReferences4(memory.base + offset, memory.data + offset, memory);
 				if (!references.empty())
-					return { true, references.front() };
+					return { true, references.front(), 4 };
 			}
 
 			auto references = decodeReferences2(memory.base + offset, memory.data + offset, memory);
-			return references.empty() ? std::make_pair(false, 0U) : std::make_pair(true, references.front());
+			return references.empty() ?
+				std::make_tuple(false, 0U, 0U) :
+				std::make_tuple(true, references.front(), 2U);
 		}
 
-		std::pair<bool, uint32_t> decodeBranchReference(uint32_t offset, const Pattern::Memory &memory) const override {
+		std::tuple<bool, uint32_t, size_t> decodeBranchReference(uint32_t offset, const Pattern::Memory &memory) const override {
 			if (offset + 4 > memory.size)
-				return { false, 0 };
+				return { false, 0, 0 };
 
 			uint32_t address = memory.base + offset;
 			auto [isThumb, thumbAddress, isThumbBLX] = decodeThumbBL(address, memory.data + offset);
 			if (isThumb && Pattern::inMemory(memory, thumbAddress, 4))
-				return { true, resolveThunks(thumbAddress, memory) | (!isThumbBLX ? 1U : 0U) };
+				return { true, resolveThunks(thumbAddress, memory) | (!isThumbBLX ? 1U : 0U), 4 };
 
 			auto [isArm, armAddress, isArmBLX] = decodeArmBL(address, memory.data + offset);
 			if (isArm && Pattern::inMemory(memory, armAddress, 4))
-				return { true, resolveThunks(armAddress, memory) | (isArmBLX ? 1U : 0U) };
+				return { true, resolveThunks(armAddress, memory) | (isArmBLX ? 1U : 0U), 4 };
 
 			auto [isLdr, pointerAddress, isThunk] = decodeArmLDR(address, memory.data + offset);
 			if (isLdr && isThunk) {
 				auto [success, pointer] = decodePointer(pointerAddress, memory);
 				if (success)
-					return { true, resolveThunks(pointer, memory) };
+					return { true, resolveThunks(pointer, memory), 4 };
 			}
 
-			return { false, 0 };
+			return { false, 0, 0 };
 		}
 
 		std::pair<bool, uint32_t> decodePointer(uint32_t address, const Pattern::Memory &memory) const override {
@@ -228,7 +230,7 @@ class ArmArch final: public Arch {
 		}
 
 		uint32_t offsetValue(uint32_t address, uint32_t offset, const Pattern::Memory &memory) const override {
-			if ((address & 1) == 0 && Pattern::inMemory(memory, address, 4)) {
+			if ((address & 1) == 0 && Pattern::inMemory(memory, address, 2)) {
 				const uint8_t *bytes = memory.data + offset;
 				uint16_t instruction = bytes[0] | (bytes[1] << 8);
 				if ((instruction & 0xFE00) == 0xB400)
@@ -324,26 +326,26 @@ class C166Arch final: public Arch {
 			return references;
 		}
 
-		std::pair<bool, uint32_t> decodeReference(uint32_t, const Pattern::Memory &) const override {
-			return { false, 0 };
+		std::tuple<bool, uint32_t, size_t> decodeReference(uint32_t, const Pattern::Memory &) const override {
+			return { false, 0, 0 };
 		}
 
-		std::pair<bool, uint32_t> decodeBranchReference(uint32_t offset, const Pattern::Memory &memory) const override {
+		std::tuple<bool, uint32_t, size_t> decodeBranchReference(uint32_t offset, const Pattern::Memory &memory) const override {
 			if (offset + 2 > memory.size)
-				return { false, 0 };
+				return { false, 0, 0 };
 
 			uint32_t address = memory.base + offset;
 			auto [isBranch2, branchAddress2] = decodeBranch2(address, memory.data + offset, memory);
 			if (isBranch2 && Pattern::inMemory(memory, branchAddress2, 2))
-				return { true, resolveThunks(branchAddress2, memory) };
+				return { true, resolveThunks(branchAddress2, memory), 2 };
 
 			if (offset + 4 <= memory.size) {
 				auto [isBranch4, branchAddress4] = decodeBranch4(address, memory.data + offset, memory);
 				if (isBranch4 && Pattern::inMemory(memory, branchAddress4, 2))
-					return { true, resolveThunks(branchAddress4, memory) };
+					return { true, resolveThunks(branchAddress4, memory), 4 };
 			}
 
-			return { false, 0 };
+			return { false, 0, 0 };
 		}
 
 		std::pair<bool, uint32_t> decodePointer(uint32_t address, const Pattern::Memory &memory) const override {
@@ -359,9 +361,9 @@ class C166Arch final: public Arch {
 		uint32_t resolveThunks(uint32_t address, const Pattern::Memory &memory) const override {
 			for (unsigned depth = 0; depth < 16 && Pattern::inMemory(memory, address, 2); depth++) {
 				const uint8_t *bytes = memory.data + (address - memory.base);
-				auto [success, target] = bytes[0] == 0x0D
-					? decodeBranch2(address, bytes, memory)
-					: std::make_pair(false, 0U);
+				auto [success, target] = bytes[0] == 0x0D ?
+					decodeBranch2(address, bytes, memory) :
+					std::make_pair(false, 0U);
 
 				if (!success && Pattern::inMemory(memory, address, 4) &&
 					(bytes[0] == 0xFA || (bytes[0] == 0xEA && bytes[1] == 0x00)))

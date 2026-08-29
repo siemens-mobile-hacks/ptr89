@@ -90,10 +90,10 @@ static void testArmDecoder() {
 
 	// 00 F0 FE FF: BL 0xA0001000; THUMB function pointer is 0xA0001001.
 	data[0] = 0x00; data[1] = 0xF0; data[2] = 0xFE; data[3] = 0xFF;
-	assert(arch.decodeBranchReference(0, memory) == std::make_pair(true, 0xA0001001));
+	assert(arch.decodeBranchReference(0, memory) == std::make_tuple(true, 0xA0001001U, 4U));
 	// 00 F0 FE EF: BLX 0xA0001000; ARM function pointer is 0xA0001000.
 	data[0] = 0x00; data[1] = 0xF0; data[2] = 0xFE; data[3] = 0xEF;
-	assert(arch.decodeBranchReference(0, memory) == std::make_pair(true, 0xA0001000));
+	assert(arch.decodeBranchReference(0, memory) == std::make_tuple(true, 0xA0001000U, 4U));
 }
 
 static void testC166Decoder() {
@@ -138,6 +138,9 @@ static void testC166Decoder() {
 	uint8_t pointerBytes[] = { 0x00, 0xF5, 0x37, 0xAB };
 	Pattern::Memory pointerMemory = { 0x200000, pointerBytes, sizeof(pointerBytes), 1, ARCH_C166 };
 	assert(Pattern::decodePointer(0x200000, pointerMemory) == std::make_pair(true, 0x37F500));
+	auto pointerResults = Pattern::find(Pattern::parse("*(00F537AB)"), pointerMemory, 1);
+	assert(pointerResults.size() == 1 && pointerResults[0].address == 0x37F500 &&
+		pointerResults[0].offset == 0 && pointerResults[0].size == 4);
 
 	uint8_t callBytes[] = {
 		0xCA, 0x00, 0x08, 0x00,	// CALLA cc_UC, 0x0008 -> 0x900008
@@ -147,7 +150,10 @@ static void testC166Decoder() {
 		0xCC, 0x00,			// NOP
 	};
 	Pattern::Memory callMemory = { 0x900000, callBytes, sizeof(callBytes), 1, ARCH_C166 };
-	assert(Pattern::decodeBranchReference(0, callMemory) == std::make_pair(true, 0x900008));
+	assert(Pattern::decodeBranchReference(0, callMemory) == std::make_tuple(true, 0x900008U, 4U));
+	auto branchResults = Pattern::find(Pattern::parse("&BL(CA000800)"), callMemory, 1);
+	assert(branchResults.size() == 1 && branchResults[0].address == 0x900008 &&
+		branchResults[0].offset == 0 && branchResults[0].size == 4);
 	auto nestedBranch4 = Pattern::find(Pattern::parse("{ DB00 }"), callMemory, 1);
 	assert(nestedBranch4.size() == 1 && nestedBranch4[0].address == 0x900000);
 
@@ -185,6 +191,8 @@ static void testC166Decoder() {
 	Pattern::Memory shortBranchMemory = { 0x900000, shortBranchBytes, sizeof(shortBranchBytes), 1, ARCH_C166 };
 	auto nestedBranch2 = Pattern::find(Pattern::parse("[ DB00 ]"), shortBranchMemory, 1);
 	assert(nestedBranch2.size() == 1 && nestedBranch2[0].address == 0x900000);
+	auto branch2Results = Pattern::find(Pattern::parse("&BL(0D01)"), shortBranchMemory, 1);
+	assert(branch2Results.size() == 1 && branch2Results[0].address == 0x900004 && branch2Results[0].size == 2);
 
 	// C166 offsets must not receive ARM's Thumb function marker.
 	uint8_t patternBytes[] = {
@@ -194,7 +202,7 @@ static void testC166Decoder() {
 	auto pattern = Pattern::parse("00 B4");
 	Pattern::Memory c166Memory = { 0x200000, patternBytes, sizeof(patternBytes), 1, ARCH_C166 };
 	auto c166Results = Pattern::find(pattern, c166Memory, 1);
-	assert(c166Results.size() == 1 && c166Results[0].value == 0x200000);
+	assert(c166Results.size() == 1 && c166Results[0].address == 0x200000 && c166Results[0].size == 2);
 
 }
 
@@ -209,6 +217,13 @@ static void testArmPattern() {
 	Pattern::Memory memory = { 0xA0000000, bytes, sizeof(bytes), 1, ARCH_ARM };
 	auto results = Pattern::find(Pattern::parse("LDR{ 00F020E3 }"), memory, 1);
 	assert(results.size() == 1 && results[0].address == 0xA0000000);
+	auto referenceResults = Pattern::find(Pattern::parse("&(00009FE5)"), memory, 1);
+	assert(referenceResults.size() == 1 && referenceResults[0].address == 0xA0000010 && referenceResults[0].offset == 0);
+	auto fixedAddressResults = Pattern::find(Pattern::parse("<A0123456>"), memory, 1);
+	assert(fixedAddressResults.size() == 1 && fixedAddressResults[0].address == 0xA0123456 && fixedAddressResults[0].size == 0);
+	assert(Pattern::stringify(Pattern::parse("&BL(00F020E3)")) == "&BL(00 F0 20 E3)");
+	assert(Pattern::stringify(Pattern::parse("<A0123456>")) == "< A0123456 >");
+	assert(Pattern::stringify(Pattern::parse("LDR[ 00BF ] CC")) == "LDR[ 00 BF ] CC");
 
 	// 00 F0 20 E3: NOP; a longer pattern must not overrun the fixture.
 	uint8_t shortBytes[] = { 0x00, 0xF0, 0x20, 0xE3 };
@@ -227,13 +242,17 @@ static void testThumbPattern() {
 	auto referenceResults = Pattern::find(Pattern::parse("LDR[ 00BF ]"), referenceMemory, 1);
 	assert(referenceResults.size() == 1 && referenceResults[0].address == 0xA0000000);
 
+	auto xrefs = Pattern::finXRefs(0xA0000008, referenceMemory, 1);
+	assert(xrefs.size() == 1 && xrefs[0].type == RESULT_TYPE_REFERENCE &&
+		xrefs[0].address == 0xA0000000 && xrefs[0].offset == 0 && xrefs[0].size == 2);
+
 	uint8_t functionBytes[] = {
 		0x10, 0xB5,	// PUSH {R4, LR}
 		0x00, 0xBF,	// NOP
 	};
 	Pattern::Memory functionMemory = { 0xA0000000, functionBytes, sizeof(functionBytes), 1, ARCH_ARM };
 	auto functionResults = Pattern::find(Pattern::parse("10 B5"), functionMemory, 1);
-	assert(functionResults.size() == 1 && functionResults[0].value == 0xA0000001);
+	assert(functionResults.size() == 1 && functionResults[0].address == 0xA0000001 && functionResults[0].size == 2);
 }
 
 

@@ -16,12 +16,12 @@ enum Architecture {
 	ARCH_C166,
 };
 
-enum PatternType {
-	PATTERN_TYPE_OFFSET,			// AB ?? CD ??, return offset of the finded bytes
-	PATTERN_TYPE_POINTER,			// *(AB ?? CD ??), use bytes as pointer
-	PATTERN_TYPE_REFERENCE,			// &(AB ?? CD ??), decode LDR
-	PATTERN_TYPE_BRANCH_REFERENCE,	// &BL(AB ?? CD ??) decode B/BL
-	PATTERN_TYPE_STATIC_VALUE,		// < FFFFFFFF >
+enum ResultType {
+	RESULT_TYPE_OFFSET,		// AB ?? CD ??, return address of the matched bytes
+	RESULT_TYPE_POINTER,		// *(AB ?? CD ??), use bytes as pointer
+	RESULT_TYPE_REFERENCE,		// &(AB ?? CD ??), decode LDR
+	RESULT_TYPE_BRANCH,		// &BL(AB ?? CD ??), decode branch
+	RESULT_TYPE_ADDRESS,		// < FFFFFFFF >
 };
 
 enum SubPatternType {
@@ -29,12 +29,6 @@ enum SubPatternType {
 	SUB_PATTERN_TYPE_BRANCH_2B,		// [ AB ?? CD ?? ]
 	SUB_PATTERN_TYPE_LDR_4B,		// LDR{ AB ?? CD ?? }
 	SUB_PATTERN_TYPE_LDR_2B,		// LDR[ AB ?? CD ?? ]
-};
-
-enum XRefType {
-	XREF_TYPE_REFERENCE,
-	XREF_TYPE_BRANCH_CALL,
-	XREF_TYPE_POINTER,
 };
 
 struct PtrExp;
@@ -53,13 +47,13 @@ struct SubPtrExp {
 };
 
 struct PtrExp {
-	PatternType type = PATTERN_TYPE_OFFSET;
+	ResultType type = RESULT_TYPE_OFFSET;
 	int inputOffset = 0; // &( AB ?? CD ?? + 1 )
 	int outputOffset = 0; // &( AB ?? CD ?? ) + 1 or AB ?? AB ?? + 1
 	std::vector<uint8_t> masks;
 	std::vector<uint8_t> bytes;
 	std::map<int, SubPtrExp> subPatterns;
-	uint32_t staticValue = 0; // for PATTERN_TYPE_STATIC_VALUE
+	uint32_t fixedAddress = 0; // for RESULT_TYPE_ADDRESS
 };
 
 class Parser;
@@ -84,23 +78,25 @@ class Pattern {
 		struct SearchResult {
 			uint32_t address;
 			uint32_t offset;
-			uint32_t value;
+			size_t size;
 		};
 
-		struct XRefSearchResult {
-			XRefType type;
+		struct XRef {
+			ResultType type;
 			uint32_t address;
 			uint32_t offset;
+			size_t size;
 		};
 
 		static std::shared_ptr<PtrExp> parse(const std::string &pattern);
+		static const char *getResultTypeName(ResultType type);
 		static std::string stringify(const std::shared_ptr<PtrExp> &pattern);
 		static int findAlignForPattern(const std::shared_ptr<PtrExp> &pattern, int align, Architecture architecture = ARCH_ARM);
 		static std::vector<SearchResult> find(const std::shared_ptr<PtrExp> &pattern, const Memory &memory, size_t maxResults = 0);
-		static std::vector<XRefSearchResult> finXRefs(uint32_t addr, const Memory &memory, size_t maxResults = 0);
+		static std::vector<XRef> finXRefs(uint32_t addr, const Memory &memory, size_t maxResults = 0);
 		static bool checkPattern(const std::shared_ptr<PtrExp> &pattern, size_t offset, const Memory &memory);
-		static std::pair<bool, uint32_t> decodeReference(uint32_t offset, const Memory &memory);
-		static std::pair<bool, uint32_t> decodeBranchReference(uint32_t offset, const Memory &memory);
+		static std::tuple<bool, uint32_t, size_t> decodeReference(uint32_t offset, const Memory &memory);
+		static std::tuple<bool, uint32_t, size_t> decodeBranchReference(uint32_t offset, const Memory &memory);
 		static std::pair<bool, uint32_t> decodePointer(uint32_t addr, const Memory &memory);
 		static uint32_t resolveThunks(uint32_t addr, const Memory &memory);
 
@@ -111,7 +107,7 @@ class Pattern {
 	private:
 		static bool checkSubpatterns(const std::shared_ptr<PtrExp> &pattern, size_t offset, const Memory &memory);
 		static bool fuzzyMatch(const uint8_t *bytes, const uint8_t *masks, int patternSize, const uint8_t *memory);
-		static std::pair<bool, Pattern::SearchResult> decodeResult(const std::shared_ptr<PtrExp> &pattern, uint32_t offset, const Memory &memory);
+		static std::pair<bool, SearchResult> decodeResult(const std::shared_ptr<PtrExp> &pattern, uint32_t offset, const Memory &memory);
 
 };
 

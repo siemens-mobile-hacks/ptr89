@@ -6,10 +6,10 @@ Main features:
 - Compatible with [Smelter](https://web.archive.org/web/20090414122112/http://avkiev.kiev.ua/Siemens/Smelter/Smelter.htm) patterns syntax.
 - Compatible with Ghidra SRE patterns syntax.
 - Enhanced patterns syntax:
-	- Nested patterns for LDR.
+	- Nested patterns for branches and references.
 	- Half-byte patterns.
 	- Bitmask patterns.
- - JSON output.
+- JSON output.
 
 The name was chosen in respect to [Viktor89](https://patches.kibab.com/user.php5?action=view_profile&id=4205), who is greatest patch porter in the Siemens Mobile modding scene.
 
@@ -50,6 +50,7 @@ Global options:
   -a, --align N            search align [default: 1]
   -V, --verbose            enable debug logs
   -J, --json               output as JSON
+      --show-bytes         show all bytes for long results
 
 Find patterns:
   -p, --pattern STRING     pattern to search
@@ -85,18 +86,20 @@ For example, a 14 MiB M55 fullflash gets base `0x200000`. An explicit `--base` a
 # DA 9A 32 93  CALLS 0x9A, 0x9332 -> 0x9A9332
 $ ptr89 -f M55_v91.bin -A c166 -p '&BL(F0C8F0D9DA257293F0C8F0D9DA9A3293 + C)'
 Pattern: '&BL(F0C8F0D9DA257293F0C8F0D9DA9A3293 + C)'
-Found 1 matches:
-  00259254: 009A9332 (branch)
+Found 1 branch:
+  ADDRESS   OFFSET    BYTES
+  009A9332  00059254  DA 9A 32 93
 ```
 
 ### Find x-refs
 ```bash
 $ ptr89 -f EL71sw45.bin -x A04CA048
-Searching x-refs for A04CA048
-Found 3 matches:
-  A0CF63A4 (branch call)
-  A0FC25DC (branch call)
-  A0FC25E0 (pointer)
+Xrefs to 0xA04CA048
+Found 3 xrefs:
+  OFFSET    XREF      KIND       BYTES
+  00CF63A4  A0CF63A4  branch     CC F2 1A E9
+  00FC25DC  A0FC25DC  branch     04 F0 1F E5
+  00FC25E0  A0FC25E0  pointer    48 A0 4C A0
 
 Search done in 1612 ms
 ```
@@ -105,8 +108,9 @@ Search done in 1612 ms
 ```bash
 $ ptr89 -f EL71v45.bin -p "F0B5061C0C1C151C85B068461122??49??????????E0207869466A460009085C307021780134"
 Pattern: 'F0B5061C0C1C151C85B068461122??49??????????E0207869466A460009085C307021780134'
-Found 1 matches:
-  A058BB98: A058BB99 (offset)
+Found 1 address:
+  ADDRESS   OFFSET    BYTES
+  A058BB99  0058BB98  F0 B5 06 1C 0C 1C 15 1C 85 B0 68 46 11 22 0A 49 …
 
 Search done in 72 ms
 ```
@@ -114,15 +118,62 @@ Search done in 72 ms
 ```bash
 $ ptr89 -f EL71v45.bin -p "??2800D0F5E6704780B508F0??E980BD80B5+1" -p "??B589B006A901A80522??????????49051C"
 Pattern: '??2800D0F5E6704780B508F0??E980BD80B5+1'
-Found 1 matches:
-  A0092F93: A0092F93 (offset)
+Found 1 address:
+  ADDRESS   OFFSET    BYTES
+  A0092F93  00092F93  28 00 D0 F5 E6 70 47 80 B5 08 F0 58 E9 80 BD 80 …
 
 Pattern: '??B589B006A901A80522??????????49051C'
-Found 1 matches:
-  A05C4B38: A05C4B39 (offset)
+Found 1 address:
+  ADDRESS   OFFSET    BYTES
+  A05C4B39  005C4B38  F0 B5 89 B0 06 A9 01 A8 05 22 3B F7 5E FF 54 49 …
 
 Search done in 143 ms
 ```
+
+`ADDRESS` is the result produced by the pattern: a matched code address
+(including the Thumb bit), decoded branch/reference destination, pointer value,
+or fixed address. `OFFSET` is where the matching bytes occur in the fullflash,
+and `BYTES` contains the complete matched pattern. For pointer, reference, and
+branch results it instead contains the complete pointer or decoded instruction.
+Patterns longer than 16 bytes show the first 16 followed by `…`; use
+`--show-bytes` to print them in full.
+A fixed address has no corresponding offset or bytes, so both columns contain `-`.
+
+### JSON output
+
+`-J` or `--json` returns full, untruncated bytes without `elapsed`. Search and
+x-ref results intentionally use different structures:
+
+```json
+{
+  "patterns": [
+    {
+      "pattern": "&BL(...)",
+      "type": "branch",
+      "results": [
+        { "address": 10130226, "offset": 365140, "bytes": "DA9A3293" }
+      ]
+    }
+  ]
+}
+```
+
+```json
+{
+  "target": 2689376328,
+  "xrefs": [
+    {
+      "xref": 2700879328,
+      "offset": 16524768,
+      "type": "pointer",
+      "bytes": "48A04CA0"
+    }
+  ]
+}
+```
+
+For a fixed address, `offset` and `bytes` are omitted. `--from-ini` returns a
+`functions` array with one `result` object or `null` for each entry.
 
 ### Convert patterns.ini to swilib.vkp
 ```
@@ -162,11 +213,15 @@ Creates a pattern finder. Call `open()` before searching.
 ### `open(data, options?)`
 
 ```ts
-open(data: Uint8Array, options?: {
-	arch?: "arm" | "c166",
-	base?: number,
-	align?: number,
-}): Promise<void>;
+type Ptr89Arch = "arm" | "c166";
+
+interface Ptr89OpenOptions {
+	arch?: Ptr89Arch;
+	base?: number;
+	align?: number;
+}
+
+open(data: Uint8Array, options?: Ptr89OpenOptions): Promise<void>;
 ```
 
 Copies a fullflash into WebAssembly memory. The input buffer is no longer
@@ -182,37 +237,40 @@ extends `Uint8Array`.
 ### `find(pattern, limit?)`
 
 ```ts
-find(pattern: string, limit?: number): PatternSearchResult[];
+find(pattern: string, limit?: number): Ptr89SearchResult[];
 ```
 
 Finds one pattern in the opened fullflash. The default limit is `100`; a limit
-of `0` disables it. The return value has the same fields and type names as CLI
-JSON output:
+of `0` disables it. `address` is the resolved pattern result, while `offset`
+and `bytes` describe its location in the fullflash. Fixed addresses contain
+only `address`:
 
 ```ts
-type PatternSearchResult = {
-	type: "offset" | "pointer" | "reference" | "branch" | "static_value";
+interface Ptr89SearchResult {
 	address: number;
-	offset: number;
-	value: number;
-};
+	offset?: number;
+	bytes?: string;
+}
 ```
 
 ### `findXRefs(address, limit?)`
 
 ```ts
-findXRefs(address: number, limit?: number): XRefSearchResult[];
+findXRefs(address: number, limit?: number): Ptr89XRef[];
 ```
 
 Finds branches, decoded references and stored pointers to a 32-bit address.
-The default limit is `100`; a limit of `0` disables it.
+The default limit is `100`; a limit of `0` disables it:
 
 ```ts
-type XRefSearchResult = {
-	type: "pointer" | "reference" | "branch";
-	address: number;
+type Ptr89XRefType = "pointer" | "reference" | "branch";
+
+interface Ptr89XRef {
+	type: Ptr89XRefType;
+	xref: number;
 	offset: number;
-};
+	bytes: string;
+}
 ```
 
 ### `setDebug(enabled)`
@@ -570,9 +628,9 @@ Steps:
 	```
 2. Result is: `0xA058BB98 | 1 = 0xA058BB99`
 
-## Stub value
-Usually used in `patterns.ini` for stub entries.
+## Fixed address
+Usually used in `patterns.ini` for entries whose address is already known.
 ```bash
-# Pattern result is 0xA8000000
+# Address is 0xA8000000
 < A8000000 >
 ```

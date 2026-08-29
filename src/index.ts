@@ -3,27 +3,26 @@ import createModule from "#build/ptr89_wasm.js";
 type WasmModule = Awaited<ReturnType<typeof createModule>>;
 type WasmPtr89 = InstanceType<WasmModule["Ptr89"]>;
 
-export type Architecture = "arm" | "c166";
-export type PatternSearchResultType = "offset" | "pointer" | "reference" | "branch" | "static_value";
-export type XRefSearchResultType = "pointer" | "reference" | "branch";
+export type Ptr89Arch = "arm" | "c166";
+export type Ptr89XRefType = "pointer" | "reference" | "branch";
 
-export interface OpenOptions {
-	arch?: Architecture;
+export interface Ptr89OpenOptions {
+	arch?: Ptr89Arch;
 	base?: number;
 	align?: number;
 }
 
-export interface PatternSearchResult {
-	type: PatternSearchResultType;
+export interface Ptr89SearchResult {
 	address: number;
-	offset: number;
-	value: number;
+	offset?: number;
+	bytes?: string;
 }
 
-export interface XRefSearchResult {
-	type: XRefSearchResultType;
-	address: number;
+export interface Ptr89XRef {
+	type: Ptr89XRefType;
+	xref: number;
 	offset: number;
+	bytes: string;
 }
 
 const C166_ADDRESS_SPACE_SIZE = 0x1000000;
@@ -60,7 +59,7 @@ export class Ptr89 {
 	private module?: WasmModule;
 	private handle?: WasmPtr89;
 
-	async open(data: Uint8Array, options: OpenOptions = {}): Promise<void> {
+	async open(data: Uint8Array, options: Ptr89OpenOptions = {}): Promise<void> {
 		const arch = options.arch ?? "arm";
 		const align = options.align ?? 1;
 		if (!Number.isSafeInteger(align) || align <= 0)
@@ -109,7 +108,7 @@ export class Ptr89 {
 		this.getHandle().setDebug(enabled);
 	}
 
-	find(pattern: string, limit = 100): PatternSearchResult[] {
+	find(pattern: string, limit = 100): Ptr89SearchResult[] {
 		validateLimit(limit);
 		const [module, handle] = this.getState();
 		try {
@@ -119,7 +118,13 @@ export class Ptr89 {
 					const match = matches.get(i);
 					if (!match)
 						throw new Error(`Missing search result at index ${i}.`);
-					return match as PatternSearchResult;
+					const result: Ptr89SearchResult = { address: match.address };
+					const bytes = String(match.bytes);
+					if (bytes) {
+						result.offset = match.offset;
+						result.bytes = bytes;
+					}
+					return result;
 				});
 			} finally {
 				matches.delete();
@@ -129,7 +134,7 @@ export class Ptr89 {
 		}
 	}
 
-	findXRefs(address: number, limit = 100): XRefSearchResult[] {
+	findXRefs(address: number, limit = 100): Ptr89XRef[] {
 		validateLimit(limit);
 		if (!Number.isSafeInteger(address) || address < 0 || address > 0xFFFFFFFF)
 			throw new RangeError("Address must be a 32-bit unsigned integer.");
@@ -142,7 +147,12 @@ export class Ptr89 {
 					const match = matches.get(i);
 					if (!match)
 						throw new Error(`Missing x-ref result at index ${i}.`);
-					return match as XRefSearchResult;
+					return {
+						type: String(match.type) as Ptr89XRefType,
+						xref: match.xref,
+						offset: match.offset,
+						bytes: String(match.bytes),
+					};
 				});
 			} finally {
 				matches.delete();

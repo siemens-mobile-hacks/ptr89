@@ -26,6 +26,22 @@ std::shared_ptr<PtrExp> Pattern::parse(const std::string &pattern) {
 	return parser.parse(pattern);
 }
 
+const char *Pattern::getResultTypeName(ResultType type) {
+	switch (type) {
+		case RESULT_TYPE_OFFSET:
+			return "offset";
+		case RESULT_TYPE_POINTER:
+			return "pointer";
+		case RESULT_TYPE_REFERENCE:
+			return "reference";
+		case RESULT_TYPE_BRANCH:
+			return "branch";
+		case RESULT_TYPE_ADDRESS:
+			return "address";
+	}
+	throw std::invalid_argument("Invalid result type.");
+}
+
 bool Pattern::fuzzyMatch(const uint8_t *bytes, const uint8_t *masks, int patternSize, const uint8_t *memory) {
 	bool found = true;
 	for (int j = 0; j < patternSize; j++) {
@@ -55,8 +71,8 @@ bool Pattern::checkPattern(const std::shared_ptr<PtrExp> &pattern, size_t offset
 	if (spdlog::should_log(spdlog::level::debug))
 		spdlog::debug("Checking pattern: '{}' at {:08X}", stringify(pattern), memory.base + offset);
 
-	if (pattern->type == PATTERN_TYPE_STATIC_VALUE) {
-		spdlog::debug("Static value: {:08X}", pattern->staticValue);
+	if (pattern->type == RESULT_TYPE_ADDRESS) {
+		spdlog::debug("Fixed address: {:08X}", pattern->fixedAddress);
 		return true;
 	}
 
@@ -132,11 +148,11 @@ bool Pattern::checkSubpatterns(const std::shared_ptr<PtrExp> &pattern, size_t of
 	return false;
 }
 
-std::pair<bool, uint32_t> Pattern::decodeReference(uint32_t offset, const Memory &memory) {
+std::tuple<bool, uint32_t, size_t> Pattern::decodeReference(uint32_t offset, const Memory &memory) {
 	return getArch(memory.arch).decodeReference(offset, memory);
 }
 
-std::pair<bool, uint32_t> Pattern::decodeBranchReference(uint32_t offset, const Memory &memory) {
+std::tuple<bool, uint32_t, size_t> Pattern::decodeBranchReference(uint32_t offset, const Memory &memory) {
 	return getArch(memory.arch).decodeBranchReference(offset, memory);
 }
 
@@ -159,48 +175,48 @@ std::pair<bool, Pattern::SearchResult> Pattern::decodeResult(const std::shared_p
 	uint32_t address = memory.base + offset;
 
 	switch (pattern->type) {
-		case PATTERN_TYPE_OFFSET:
+		case RESULT_TYPE_OFFSET:
 		{
 			uint32_t value = getArch(memory.arch).offsetValue(address, offset, memory);
-			return { true, { address, offset, value } };
+			return { true, { value, offset, pattern->bytes.size() } };
 		}
 		break;
 
-		case PATTERN_TYPE_REFERENCE:
+		case RESULT_TYPE_REFERENCE:
 		{
-			auto [success, value] = decodeReference(offset, memory);
+			auto [success, value, size] = decodeReference(offset, memory);
 			if (success)
-				return { true, { address, offset, value + pattern->outputOffset } };
+				return { true, { value + pattern->outputOffset, offset, size } };
 		}
 		break;
 
-		case PATTERN_TYPE_BRANCH_REFERENCE:
+		case RESULT_TYPE_BRANCH:
 		{
-			auto [success, value] = decodeBranchReference(offset, memory);
+			auto [success, value, size] = decodeBranchReference(offset, memory);
 			if (success)
-				return { true, { address, offset, value + pattern->outputOffset } };
+				return { true, { value + pattern->outputOffset, offset, size } };
 		}
 		break;
 
-		case PATTERN_TYPE_POINTER:
+		case RESULT_TYPE_POINTER:
 		{
 			auto [success, value] = decodePointer(offset + memory.base, memory);
 			if (success)
-				return { true, { address, offset, value + pattern->outputOffset } };
+				return { true, { value + pattern->outputOffset, offset, 4 } };
 		}
 		break;
 
-		case PATTERN_TYPE_STATIC_VALUE:
-			return { true, { 0, 0, pattern->staticValue } };
+		case RESULT_TYPE_ADDRESS:
+			return { true, { pattern->fixedAddress, 0, 0 } };
 		break;
 	}
 	return { false, { } };
 }
 
 int Pattern::findAlignForPattern(const std::shared_ptr<PtrExp> &pattern, int align, Architecture architecture) {
-	if (pattern->type == PATTERN_TYPE_BRANCH_REFERENCE) {
+	if (pattern->type == RESULT_TYPE_BRANCH) {
 		align = std::max(align, 2);
-	} else if (pattern->type == PATTERN_TYPE_REFERENCE) {
+	} else if (pattern->type == RESULT_TYPE_REFERENCE) {
 		align = std::max(align, 2);
 	}
 
@@ -247,9 +263,9 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 		spdlog::debug("Memory: {:08X} {:08X}", memory.base, memory.size);
 	}
 
-	if (pattern->type == PATTERN_TYPE_STATIC_VALUE) {
-		spdlog::debug("Static value: {:08X}", pattern->staticValue);
-		searchResults.push_back({ 0, 0, pattern->staticValue });
+	if (pattern->type == RESULT_TYPE_ADDRESS) {
+		spdlog::debug("Fixed address: {:08X}", pattern->fixedAddress);
+		searchResults.push_back({ pattern->fixedAddress, 0, 0 });
 		return searchResults;
 	}
 
@@ -306,8 +322,7 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 						if (isDecoded) {
 							searchResults.push_back(result);
 
-							spdlog::debug("FOUND: address={:08X}, offset={:08X}, value={:08X}",
-								result.address, result.offset, result.value);
+							spdlog::debug("FOUND: address={:08X}, offset={:08X}", result.address, result.offset);
 
 							if (maxResults && searchResults.size() >= maxResults) {
 								spdlog::debug("Maximum search results are reached.");
@@ -343,8 +358,7 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 					if (isDecoded) {
 						searchResults.push_back(result);
 
-						spdlog::debug("FOUND: address={:08X}, offset={:08X}, value={:08X}",
-							result.address, result.offset, result.value);
+						spdlog::debug("FOUND: address={:08X}, offset={:08X}", result.address, result.offset);
 
 						if (maxResults && searchResults.size() >= maxResults) {
 							spdlog::debug("Maximum search results are reached.");
@@ -372,22 +386,22 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 	return searchResults;
 }
 
-std::vector<Pattern::XRefSearchResult> Pattern::finXRefs(uint32_t addr, const Memory &memory, size_t maxResults) {
+std::vector<Pattern::XRef> Pattern::finXRefs(uint32_t addr, const Memory &memory, size_t maxResults) {
 	spdlog::debug("Searching XRef's for {:08X}", addr);
-	std::vector<XRefSearchResult> searchResults;
+	std::vector<XRef> searchResults;
 	for (size_t i = 0; i < memory.size; i += 2) {
-		auto [isReference, refAddr] = decodeReference(i, memory);
-		auto [isBranchReference, branchAddr] = decodeBranchReference(i, memory);
+		auto [isReference, refAddr, referenceSize] = decodeReference(i, memory);
+		auto [isBranchReference, branchAddr, branchSize] = decodeBranchReference(i, memory);
 		auto [isPointer, ptrAddr] = decodePointer(i + memory.base, memory);
 		if (isBranchReference && (branchAddr & ~1) == (addr & ~1)) {
-			spdlog::debug("FOUND: branch call at {:08X}", i + memory.base);
-			searchResults.push_back({ XREF_TYPE_BRANCH_CALL, static_cast<uint32_t>(memory.base + i), static_cast<uint32_t>(i) });
+			spdlog::debug("FOUND: branch at {:08X}", i + memory.base);
+			searchResults.push_back({ RESULT_TYPE_BRANCH, static_cast<uint32_t>(memory.base + i), static_cast<uint32_t>(i), branchSize });
 		} else if (isReference && (refAddr & ~1) == (addr & ~1)) {
 			spdlog::debug("FOUND: reference at {:08X}", i + memory.base);
-			searchResults.push_back({ XREF_TYPE_REFERENCE, static_cast<uint32_t>(memory.base + i), static_cast<uint32_t>(i) });
+			searchResults.push_back({ RESULT_TYPE_REFERENCE, static_cast<uint32_t>(memory.base + i), static_cast<uint32_t>(i), referenceSize });
 		} else if (isPointer && (ptrAddr & ~1) == (addr & ~1)) {
 			spdlog::debug("FOUND: pointer at {:08X}", i + memory.base);
-			searchResults.push_back({ XREF_TYPE_POINTER, static_cast<uint32_t>(memory.base + i), static_cast<uint32_t>(i) });
+			searchResults.push_back({ RESULT_TYPE_POINTER, static_cast<uint32_t>(memory.base + i), static_cast<uint32_t>(i), 4 });
 		}
 
 		if (maxResults && searchResults.size() >= maxResults) {
@@ -399,11 +413,16 @@ std::vector<Pattern::XRefSearchResult> Pattern::finXRefs(uint32_t addr, const Me
 }
 
 std::string Pattern::stringify(const std::shared_ptr<PtrExp> &pattern) {
+	if (pattern->type == RESULT_TYPE_ADDRESS)
+		return std::format("< {:08X} >", pattern->fixedAddress);
+
 	std::string patternText;
 
-	if (pattern->type == PATTERN_TYPE_REFERENCE) {
+	if (pattern->type == RESULT_TYPE_REFERENCE) {
 		patternText += "&(";
-	} else if (pattern->type == PATTERN_TYPE_POINTER) {
+	} else if (pattern->type == RESULT_TYPE_BRANCH) {
+		patternText += "&BL(";
+	} else if (pattern->type == RESULT_TYPE_POINTER) {
 		patternText += "*(";
 	}
 
@@ -425,7 +444,7 @@ std::string Pattern::stringify(const std::shared_ptr<PtrExp> &pattern) {
 			} else if (p.type == SUB_PATTERN_TYPE_LDR_4B) {
 				tmp.push_back("LDR{ " + stringify(p.pattern) + " }");
 			}
-			i += p.size;
+			i += p.size - 1;
 		} else {
 			if (mask == 0x00) {
 				tmp.push_back("??");
@@ -457,7 +476,7 @@ std::string Pattern::stringify(const std::shared_ptr<PtrExp> &pattern) {
 
 	patternText += strJoin(" ", tmp);
 
-	if (pattern->type == PATTERN_TYPE_REFERENCE || pattern->type == PATTERN_TYPE_POINTER) {
+	if (pattern->type == RESULT_TYPE_REFERENCE || pattern->type == RESULT_TYPE_BRANCH || pattern->type == RESULT_TYPE_POINTER) {
 		patternText += ")";
 	}
 

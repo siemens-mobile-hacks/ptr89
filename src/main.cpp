@@ -13,12 +13,121 @@ using namespace Ptr89;
 
 static constexpr uint64_t C166_ADDRESS_SPACE_SIZE = 0x1000000;
 
+static const char *getSearchTypeName(ResultType type) {
+	return type == RESULT_TYPE_OFFSET || type == RESULT_TYPE_ADDRESS ?
+		"address" :
+		Pattern::getResultTypeName(type);
+}
+
+static std::string getResultBytes(uint32_t offset, size_t resultSize, const Pattern::Memory &memory, bool showBytes) {
+	if (resultSize == 0 || offset >= memory.size)
+		return "-";
+
+	std::string bytes;
+	bool truncated = !showBytes && resultSize > 16;
+	size_t size = std::min({ resultSize, memory.size - offset, showBytes ? resultSize : size_t{ 16 } });
+	for (size_t i = 0; i < size; i++) {
+		if (!bytes.empty())
+			bytes += ' ';
+		bytes += std::format("{:02X}", memory.data[offset + i]);
+	}
+	if (truncated)
+		bytes += " …";
+	return bytes;
+}
+
+static std::string getResultBytesJSON(uint32_t offset, size_t resultSize, const Pattern::Memory &memory) {
+	std::string bytes;
+	size_t size = offset < memory.size ? std::min(resultSize, memory.size - offset) : 0;
+	bytes.reserve(size * 2);
+	for (size_t i = 0; i < size; i++)
+		bytes += std::format("{:02X}", memory.data[offset + i]);
+	return bytes;
+}
+
+static json searchResultToJSON(const Pattern::SearchResult &result, const Pattern::Memory &memory) {
+	json item = { { "address", result.address } };
+	if (result.size != 0) {
+		item["offset"] = result.offset;
+		item["bytes"] = getResultBytesJSON(result.offset, result.size, memory);
+	}
+	return item;
+}
+
+static json xrefToJSON(const Pattern::XRef &xref, const Pattern::Memory &memory) {
+	return {
+		{ "xref", xref.address },
+		{ "offset", xref.offset },
+		{ "type", Pattern::getResultTypeName(xref.type) },
+		{ "bytes", getResultBytesJSON(xref.offset, xref.size, memory) },
+	};
+}
+
+static void printResults(const std::vector<Pattern::SearchResult> &results, const Pattern::Memory &memory, bool showBytes) {
+	if (results.empty())
+		return;
+
+	std::cout << "  ADDRESS   OFFSET    BYTES\n";
+	for (const auto &result: results) {
+		if (result.size == 0) {
+			std::cout << std::format("  {:08X}  {:<9} {}\n", result.address, "-", getResultBytes(result.offset, result.size, memory, showBytes));
+		} else {
+			std::cout << std::format("  {:08X}  {:08X}  {}\n",
+				result.address, result.offset, getResultBytes(result.offset, result.size, memory, showBytes));
+		}
+	}
+}
+
+static void printXRefs(const std::vector<Pattern::XRef> &results, const Pattern::Memory &memory, bool showBytes) {
+	if (results.empty())
+		return;
+
+	std::cout << "  OFFSET    XREF      KIND       BYTES\n";
+	for (const auto &result: results) {
+		std::cout << std::format("  {:08X}  {:08X}  {:<10} {}\n",
+			result.offset, result.address, Pattern::getResultTypeName(result.type),
+			getResultBytes(result.offset, result.size, memory, showBytes));
+	}
+}
+
+static void printResultCount(size_t count, ResultType type) {
+	const char *name;
+	const char *plural;
+	switch (type) {
+		case RESULT_TYPE_OFFSET:
+			name = "address";
+			plural = "addresses";
+			break;
+		case RESULT_TYPE_POINTER:
+			name = "pointer";
+			plural = "pointers";
+			break;
+		case RESULT_TYPE_REFERENCE:
+			name = "reference";
+			plural = "references";
+			break;
+		case RESULT_TYPE_BRANCH:
+			name = "branch";
+			plural = "branches";
+			break;
+		case RESULT_TYPE_ADDRESS:
+			name = "address";
+			plural = "addresses";
+			break;
+	}
+	std::cout << std::format("Found {} {}:\n", count, count == 1 ? name : plural);
+}
+
+static void printXRefCount(size_t count) {
+	std::cout << std::format("Found {} {}:\n", count, count == 1 ? "xref" : "xrefs");
+}
+
 int main(int argc, char *argv[]) {
 	spdlog::set_default_logger(spdlog::stderr_color_mt("ptr89"));
 	spdlog::set_pattern("%v");
 	spdlog::set_level(spdlog::level::warn);
 
-	argparse::ArgumentParser program("ptr89", "1.1.1");
+	argparse::ArgumentParser program("ptr89", "2.0.0");
 
 	program.add_argument("-f", "--file")
 		.required()
@@ -37,7 +146,7 @@ int main(int argc, char *argv[]) {
 		.append()
 		.default_value("")
 		.nargs(1);
-	program.add_argument("-x", "--xrefs")
+	program.add_argument("-x", "--xref", "--xrefs")
 		.append()
 		.default_value("")
 		.nargs(1);
@@ -59,6 +168,10 @@ int main(int argc, char *argv[]) {
 		.default_value(false)
 		.implicit_value(true)
 		.nargs(0);
+	program.add_argument("--show-bytes")
+		.default_value(false)
+		.implicit_value(true)
+		.nargs(0);
 	program.add_argument("-h", "--help")
 		.default_value(false)
 		.implicit_value(true)
@@ -75,6 +188,7 @@ int main(int argc, char *argv[]) {
 		std::cerr << "  -a, --align N            search align [default: 1]\n";
 		std::cerr << "  -V, --verbose            enable debug logs\n";
 		std::cerr << "  -J, --json               output as JSON\n";
+		std::cerr << "      --show-bytes         show all bytes for long results\n";
 		std::cerr << "\n";
 		std::cerr << "Find patterns:\n";
 		std::cerr << "  -p, --pattern STRING     pattern to search\n";
@@ -136,6 +250,7 @@ int main(int argc, char *argv[]) {
 		Pattern::Memory memoryRegion = { memoryBase, memory, memorySize, memoryAlign, arch };
 
 		auto asJSON = program.get<bool>("--json");
+		auto showBytes = program.get<bool>("--show-bytes");
 		if (program.is_used("--pattern")) {
 			uint32_t limit = program.get<int>("--limit");
 
@@ -149,50 +264,19 @@ int main(int argc, char *argv[]) {
 				if (asJSON) {
 					json patternJson;
 					patternJson["pattern"] = patternStr;
+					patternJson["type"] = getSearchTypeName(pattern->type);
 					patternJson["results"] = json::array();
-					for (auto &result: results) {
-						json item;
-						item["address"] = result.address;
-						item["offset"] = result.offset;
-						item["value"] = result.value;
-
-						if (pattern->type == PATTERN_TYPE_OFFSET) {
-							item["type"] = "offset";
-						} else if (pattern->type == PATTERN_TYPE_POINTER) {
-							item["type"] = "pointer";
-						} else if (pattern->type == PATTERN_TYPE_REFERENCE) {
-							item["type"] = "reference";
-						} else if (pattern->type == PATTERN_TYPE_BRANCH_REFERENCE) {
-							item["type"] = "branch";
-						} else if (pattern->type == PATTERN_TYPE_STATIC_VALUE) {
-							item["type"] = "static_value";
-						}
-
-						patternJson["results"].push_back(item);
-					}
+					for (const auto &result: results)
+						patternJson["results"].push_back(searchResultToJSON(result, memoryRegion));
 					j["patterns"].push_back(patternJson);
 				} else {
 					std::cout << std::format("Pattern: '{}'\n", patternStr);
-					std::cout << std::format("Found {} matches:\n", results.size());
-					for (auto &result: results) {
-						if (pattern->type == PATTERN_TYPE_OFFSET) {
-							std::cout << std::format("  {:08X}: {:08X} (offset)\n", result.address, result.value);
-						} else if (pattern->type == PATTERN_TYPE_POINTER) {
-							std::cout << std::format("  {:08X}: {:08X} (pointer)\n", result.address, result.value);
-						} else if (pattern->type == PATTERN_TYPE_REFERENCE) {
-							std::cout << std::format("  {:08X}: {:08X} (reference)\n", result.address, result.value);
-						} else if (pattern->type == PATTERN_TYPE_BRANCH_REFERENCE) {
-							std::cout << std::format("  {:08X}: {:08X} (branch)\n", result.address, result.value);
-						} else if (pattern->type == PATTERN_TYPE_STATIC_VALUE) {
-							std::cout << std::format("  {:08X} (static value)\n", result.value);
-						}
-					}
+					printResultCount(results.size(), pattern->type);
+					printResults(results, memoryRegion, showBytes);
 					std::cout << '\n';
 				}
 			}
 			auto end = duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-			j["elapsed"] = end - start;
-
 			if (!asJSON) {
 				std::cout << std::format("Search done in {} ms\n", end - start);
 			}
@@ -200,96 +284,55 @@ int main(int argc, char *argv[]) {
 			uint32_t addr = stoll(program.get<std::string>("--xrefs"), NULL, 16);
 			uint32_t limit = program.get<int>("--limit");
 
-			j["results"] = json::array();
+			j["target"] = addr;
+			j["xrefs"] = json::array();
 			auto start = duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 			auto results = Pattern::finXRefs(addr, memoryRegion, limit);
 			if (asJSON) {
-				for (auto &result: results) {
-					json item;
-					item["address"] = result.address;
-					item["offset"] = result.offset;
-
-					if (result.type == XREF_TYPE_REFERENCE) {
-						item["type"] = "reference";
-					} else if (result.type == XREF_TYPE_BRANCH_CALL) {
-						item["type"] = "branch";
-					} else if (result.type == XREF_TYPE_POINTER) {
-						item["type"] = "pointer";
-					}
-
-					j["results"].push_back(item);
-				}
+				for (const auto &result: results)
+					j["xrefs"].push_back(xrefToJSON(result, memoryRegion));
 			} else {
-				std::cout << std::format("Searching x-refs for {:08X}\n", addr);
-				std::cout << std::format("Found {} matches:\n", results.size());
-				for (auto &result: results) {
-					if (result.type == XREF_TYPE_REFERENCE) {
-						std::cout << std::format("  {:08X} (reference)\n", result.address);
-					} else if (result.type == XREF_TYPE_BRANCH_CALL) {
-						std::cout << std::format("  {:08X} (branch call)\n", result.address);
-					} else if (result.type == XREF_TYPE_POINTER) {
-						std::cout << std::format("  {:08X} (pointer)\n", result.address);
-					}
-				}
+				std::cout << std::format("Xrefs to 0x{:08X}\n", addr);
+				printXRefCount(results.size());
+				printXRefs(results, memoryRegion, showBytes);
 				std::cout << '\n';
 			}
 			auto end = duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-			j["elapsed"] = end - start;
-
 			if (!asJSON) {
 				std::cout << std::format("Search done in {} ms\n", end - start);
 			}
 		} else if (program.is_used("--from-ini")) {
-			auto start = duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 			auto patternsLib = parsePatternsIni(program.get<std::string>("--from-ini"));
 
-			j["patterns"] = json::array();
+			j["functions"] = json::array();
 
 			for (auto &entry: patternsLib) {
 				auto pattern = Pattern::parse(entry.pattern);
 				auto results = Pattern::find(pattern, memoryRegion, 1);
 
 				if (asJSON) {
-					json patternJson;
-					patternJson["pattern"] = entry.pattern;
-					patternJson["id"] = entry.id;
-					patternJson["function"] = entry.funcName;
-					patternJson["results"] = json::array();
-					for (auto &result: results) {
-						json item;
-						item["address"] = result.address;
-						item["offset"] = result.offset;
-						item["value"] = result.value;
-
-						if (pattern->type == PATTERN_TYPE_OFFSET) {
-							item["type"] = "offset";
-						} else if (pattern->type == PATTERN_TYPE_POINTER) {
-							item["type"] = "pointer";
-						} else if (pattern->type == PATTERN_TYPE_REFERENCE) {
-							item["type"] = "reference";
-						} else if (pattern->type == PATTERN_TYPE_BRANCH_REFERENCE) {
-							item["type"] = "branch";
-						} else if (pattern->type == PATTERN_TYPE_STATIC_VALUE) {
-							item["type"] = "static_value";
-						}
-
-						patternJson["results"].push_back(item);
-					}
-					j["patterns"].push_back(patternJson);
+					json functionJson = {
+						{ "id", entry.id },
+						{ "name", entry.funcName },
+						{ "pattern", entry.pattern },
+						{ "type", getSearchTypeName(pattern->type) },
+					};
+					functionJson["result"] = results.empty() || results[0].address == 0xFFFFFFFF ?
+						json(nullptr) :
+						searchResultToJSON(results[0], memoryRegion);
+					j["functions"].push_back(functionJson);
 				} else {
 					if (entry.id > 0 && (entry.id & 0xF) == 0)
 						std::cout << '\n';
 
-					if (results.size() > 0 && results[0].value != 0xFFFFFFFF) {
+					if (results.size() > 0 && results[0].address != 0xFFFFFFFF) {
 						auto result = results[0];
-						std::cout << std::format("{:04X}: 0x{:08X}   ;{:4X}: {}\n", entry.id * 4, result.value, entry.id, entry.funcName);
+						std::cout << std::format("{:04X}: 0x{:08X}   ;{:4X}: {}\n", entry.id * 4, result.address, entry.id, entry.funcName);
 					} else {
 						std::cout << std::format(";{:03X}:              ;{:4X}: {}\n", entry.id * 4, entry.id, entry.funcName);
 					}
 				}
 			}
-			auto end = duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-			j["elapsed"] = end - start;
 		} else if (program.is_used("--prettify")) {
 			auto patternStr = program.get<std::string>("--prettify");
 			if (asJSON) {
@@ -304,8 +347,7 @@ int main(int argc, char *argv[]) {
 
 	} catch (const std::exception &err) {
 		if (program.get<bool>("--json")) {
-			j["error"] = err.what();
-			std::cout << j.dump(2) << '\n';
+			std::cout << json({ { "error", err.what() } }).dump(2) << '\n';
 		} else {
 			spdlog::error("ERROR: {}", err.what());
 			std::cerr << '\n';

@@ -6,19 +6,19 @@ using namespace emscripten;
 using namespace Ptr89;
 
 EMSCRIPTEN_BINDINGS(ptr89) {
-	value_object<WasmPatternSearchResult>("PatternSearchResult")
-		.field("type", &WasmPatternSearchResult::type)
-		.field("address", &WasmPatternSearchResult::address)
-		.field("offset", &WasmPatternSearchResult::offset)
-		.field("value", &WasmPatternSearchResult::value);
+	value_object<Ptr89SearchResult>("Ptr89SearchResult")
+		.field("address", &Ptr89SearchResult::address)
+		.field("offset", &Ptr89SearchResult::offset)
+		.field("bytes", &Ptr89SearchResult::bytes);
 
-	value_object<WasmXRefSearchResult>("XRefSearchResult")
-		.field("type", &WasmXRefSearchResult::type)
-		.field("address", &WasmXRefSearchResult::address)
-		.field("offset", &WasmXRefSearchResult::offset);
+	value_object<Ptr89XRef>("Ptr89XRef")
+		.field("type", &Ptr89XRef::type)
+		.field("xref", &Ptr89XRef::xref)
+		.field("offset", &Ptr89XRef::offset)
+		.field("bytes", &Ptr89XRef::bytes);
 
-	register_vector<WasmPatternSearchResult>("PatternSearchResults");
-	register_vector<WasmXRefSearchResult>("XRefSearchResults");
+	register_vector<Ptr89SearchResult>("Ptr89SearchResults");
+	register_vector<Ptr89XRef>("Ptr89XRefs");
 
 	class_<Ptr89Wasm>("Ptr89")
 		.constructor<>()
