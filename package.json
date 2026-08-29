@@ -1,6 +1,6 @@
 {
 	"name": "@sie-js/ptr89",
-	"version": "1.1.0",
+	"version": "1.1.1",
 	"description": "ARM/THUMB/C166 binary pattern finder",
 	"type": "module",
 	"main": "dist/index.js",
@@ -27,7 +27,7 @@
 	"publishConfig": {
 		"access": "public"
 	},
-	"author": "Siemens Mobile Hackers",
+	"author": "kirill.zhumarin@gmail.com",
 	"license": "MIT",
 	"packageManager": "pnpm@11.3.0",
 	"devDependencies": {
