@@ -24,6 +24,9 @@
 		"type": "git",
 		"url": "git+https://github.com/siemens-mobile-hacks/ptr89.git"
 	},
+	"publishConfig": {
+		"access": "public"
+	},
 	"author": "Siemens Mobile Hackers",
 	"license": "MIT",
 	"packageManager": "pnpm@11.3.0",
