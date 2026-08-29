@@ -38,7 +38,6 @@ type Ptr89Arch = "arm" | "c166";
 interface Ptr89OpenOptions {
 	arch?: Ptr89Arch;
 	base?: number;
-	align?: number;
 }
 
 open(data: Uint8Array, options?: Ptr89OpenOptions): Promise<void>;
@@ -52,18 +51,26 @@ extends `Uint8Array`.
 - `arch` selects the instruction decoder. Default: `"arm"`.
 - `base` sets the load address. The ARM default is `0xA0000000`. For C166 it is
   calculated as `0x1000000 - data.byteLength`.
-- `align` sets the search alignment in bytes. Default: `1`.
 
-### `find(pattern, limit?)`
+### `openFile(file, options?)`
 
 ```ts
-find(pattern: string, limit?: number): Ptr89SearchResult[];
+openFile(file: Blob, options?: Ptr89OpenOptions): Promise<void>;
+```
+
+Reads a `File` or `Blob` directly into WebAssembly memory. Options are the same
+as for `open()`.
+
+### `find(pattern, limit?, align?)`
+
+```ts
+find(pattern: string, limit?: number, align?: number): Ptr89SearchResult[];
 ```
 
 Finds one pattern in the opened fullflash. The default limit is `100`; a limit
-of `0` disables it. `address` is the resolved pattern result, while `offset`
-and `bytes` describe its location in the fullflash. Fixed addresses contain
-only `address`:
+of `0` disables it. The default alignment is `1`. `address` is the resolved
+pattern result, while `offset` and `bytes` describe its location in the
+fullflash. Fixed addresses contain only `address`:
 
 ```ts
 interface Ptr89SearchResult {

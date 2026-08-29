@@ -22,11 +22,9 @@ Ptr89Wasm::Ptr89Wasm() {
 	spdlog::set_level(spdlog::level::warn);
 }
 
-void Ptr89Wasm::open(uintptr_t ptr, size_t size, uint32_t base, int align, const std::string &archName) {
+void Ptr89Wasm::open(uintptr_t ptr, size_t size, uint32_t base, const std::string &archName) {
 	if (ptr == 0 && size != 0)
 		throw std::invalid_argument("Memory pointer is null.");
-	if (align <= 0)
-		throw std::invalid_argument("Memory alignment must be greater than zero.");
 
 	Architecture arch;
 	if (archName == "arm") {
@@ -42,7 +40,6 @@ void Ptr89Wasm::open(uintptr_t ptr, size_t size, uint32_t base, int align, const
 	if (size != 0)
 		m_data.assign(data, data + size);
 	m_base = base;
-	m_align = align;
 	m_arch = arch;
 	m_open = true;
 }
@@ -57,8 +54,8 @@ void Ptr89Wasm::setDebug(bool enabled) {
 	spdlog::set_level(enabled ? spdlog::level::debug : spdlog::level::warn);
 }
 
-std::vector<Ptr89SearchResult> Ptr89Wasm::find(const std::string &patternText, size_t limit) const {
-	auto memory = getMemory();
+std::vector<Ptr89SearchResult> Ptr89Wasm::find(const std::string &patternText, size_t limit, int align) const {
+	auto memory = getMemory(align);
 	auto pattern = Pattern::parse(patternText);
 	auto matches = Pattern::find(pattern, memory, limit);
 
@@ -74,16 +71,19 @@ std::vector<Ptr89XRef> Ptr89Wasm::findXRefs(uint32_t address, size_t limit) cons
 	auto matches = Pattern::finXRefs(address, memory, limit);
 	std::vector<Ptr89XRef> results;
 	results.reserve(matches.size());
-	for (const auto &match: matches)
+	for (const auto &match: matches) {
 		results.push_back({ Pattern::getResultTypeName(match.type), match.address, match.offset,
 			getBytes(match.offset, match.size, memory) });
+	}
 	return results;
 }
 
-Pattern::Memory Ptr89Wasm::getMemory() const {
+Pattern::Memory Ptr89Wasm::getMemory(int align) const {
 	if (!m_open)
 		throw std::runtime_error("Ptr89 is not opened.");
-	return { m_base, m_data.data(), m_data.size(), m_align, m_arch };
+	if (align <= 0)
+		throw std::invalid_argument("Search alignment must be greater than zero.");
+	return { m_base, m_data.data(), m_data.size(), align, m_arch };
 }
 
 std::string prettify(const std::string &pattern) {

@@ -16,6 +16,9 @@
   files, following the established project structure.
 - Use tabs for indentation and preserve the surrounding brace and spacing
   conventions.
+- Always use braces for multiline `if`, `for`, and `while` bodies, even when
+  the body contains a single statement. Braces may be omitted only when the
+  complete body fits on one short line.
 - In a multiline ternary expression, keep `?` and `:` at the ends of their
   respective lines:
 

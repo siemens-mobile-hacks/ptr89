@@ -41,6 +41,7 @@ describe("Ptr89 WASM", () => {
 			offset: 10,
 			bytes: "10B5",
 		}]);
+		expect(ptr89.find("48", 1, 2)).toEqual([]);
 
 		ptr89.close();
 	});
@@ -66,6 +67,28 @@ describe("Ptr89 WASM", () => {
 		}]);
 		expect(ptr89.find("<123456>", 1)).toEqual([{
 			address: 0x123456,
+		}]);
+
+		ptr89.close();
+	});
+
+	it("opens a Blob directly", async () => {
+		const memory = Uint8Array.from([
+			0x00, 0xBF,	// NOP
+			0x10, 0xB5,	// PUSH {R4, LR}
+		]);
+		const blob = new Blob([memory.subarray(0, 2), memory.subarray(2)]);
+		blob.arrayBuffer = () => {
+			throw new Error("arrayBuffer() must not be used");
+		};
+
+		const ptr89 = new Ptr89();
+		await ptr89.openFile(blob, { arch: "arm" });
+
+		expect(ptr89.find("10 B5", 1)).toEqual([{
+			address: 0xA0000003,
+			offset: 2,
+			bytes: "10B5",
 		}]);
 
 		ptr89.close();
