@@ -2,6 +2,7 @@
 build
 build-win
 build-wasm
+build-npm
 .cache
 dist
 node_modules

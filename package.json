@@ -8,6 +8,7 @@
 	"scripts": {
 		"build": "tsc",
 		"build:wasm": "tools/build_wasm.sh",
+		"prepack": "node tools/prepare_npm.mjs",
 		"test": "vitest run",
 		"test:watch": "vitest"
 	},
@@ -25,7 +26,8 @@
 		"url": "git+https://github.com/siemens-mobile-hacks/ptr89.git"
 	},
 	"publishConfig": {
-		"access": "public"
+		"access": "public",
+		"directory": "build-npm"
 	},
 	"author": "kirill.zhumarin@gmail.com",
 	"license": "MIT",

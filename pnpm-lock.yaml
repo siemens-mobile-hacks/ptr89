@@ -17,6 +17,7 @@ importers:
       vitest:
         specifier: ^3.2.6
         version: 3.2.7(@types/node@24.13.3)
+    publishDirectory: build-npm
 
 packages:
 

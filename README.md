@@ -2,14 +2,16 @@
 
 There is yet another ARM/THUMB/C166 pattern finder.
 
+[JavaScript module](JS.md).
+
 Main features:
 - Compatible with [Smelter](https://web.archive.org/web/20090414122112/http://avkiev.kiev.ua/Siemens/Smelter/Smelter.htm) patterns syntax.
 - Compatible with Ghidra SRE patterns syntax.
 - Enhanced patterns syntax:
-	- Nested patterns for branches and references.
+	- Nested patterns for LDR.
 	- Half-byte patterns.
 	- Bitmask patterns.
-- JSON output.
+ - JSON output.
 
 The name was chosen in respect to [Viktor89](https://patches.kibab.com/user.php5?action=view_profile&id=4205), who is greatest patch porter in the Siemens Mobile modding scene.
 
@@ -48,7 +50,7 @@ Global options:
   -b, --base HEX           fullflash base address [default: A0000000 for arm, auto for c166]
   -A, --arch ARCH          architecture: arm or c166 [default: arm]
   -a, --align N            search align [default: 1]
-  -V, --verbose            enable debug logs
+  -V, --verbose            enable debug
   -J, --json               output as JSON
       --show-bytes         show all bytes for long results
 
@@ -93,7 +95,7 @@ Found 1 branch:
 
 ### Find x-refs
 ```bash
-$ ptr89 -f EL71sw45.bin -x A04CA048
+$ ptr89 -f EL71v45.bin -x A04CA048
 Xrefs to 0xA04CA048
 Found 3 xrefs:
   OFFSET    XREF      KIND       BYTES
@@ -130,15 +132,6 @@ Found 1 address:
 Search done in 143 ms
 ```
 
-`ADDRESS` is the result produced by the pattern: a matched code address
-(including the Thumb bit), decoded branch/reference destination, pointer value,
-or fixed address. `OFFSET` is where the matching bytes occur in the fullflash,
-and `BYTES` contains the complete matched pattern. For pointer, reference, and
-branch results it instead contains the complete pointer or decoded instruction.
-Patterns longer than 16 bytes show the first 16 followed by `…`; use
-`--show-bytes` to print them in full.
-A fixed address has no corresponding offset or bytes, so both columns contain `-`.
-
 ### JSON output
 
 `-J` or `--json` returns full, untruncated bytes without `elapsed`. Search and
@@ -148,7 +141,7 @@ x-ref results intentionally use different structures:
 {
   "patterns": [
     {
-      "pattern": "&BL(...)",
+      "pattern": "&BL(F0C8F0D9DA257293F0C8F0D9DA9A3293 + C)",
       "type": "branch",
       "results": [
         { "address": 10130226, "offset": 365140, "bytes": "DA9A3293" }
@@ -163,10 +156,10 @@ x-ref results intentionally use different structures:
   "target": 2689376328,
   "xrefs": [
     {
-      "xref": 2700879328,
-      "offset": 16524768,
-      "type": "pointer",
-      "bytes": "48A04CA0"
+      "xref": 2697946020,
+      "offset": 13591460,
+      "type": "branch",
+      "bytes": "CCF21AE9"
     }
   ]
 }
@@ -179,140 +172,6 @@ For a fixed address, `offset` and `bytes` are omitted. `--from-ini` returns a
 ```
 ptr89 -f EL71v45.bin --from-ini ELKA.ini > swilib.vkp
 ```
-
-# JAVASCRIPT MODULE
-
-[![NPM Version](https://img.shields.io/npm/v/%40sie-js%2Fptr89)](https://www.npmjs.com/package/@sie-js/ptr89)
-
-Install the package with pnpm:
-
-```bash
-pnpm add @sie-js/ptr89
-```
-
-## Example
-
-```ts
-import { Ptr89 } from "@sie-js/ptr89";
-
-const ptr89 = new Ptr89();
-await ptr89.open(fullflash, { arch: "c166" });
-
-const matches = ptr89.find("LDR{ DB00 }", 100);
-const xrefs = ptr89.findXRefs(0x9A9332, 100);
-
-ptr89.close();
-```
-
-## API
-
-### `new Ptr89()`
-
-Creates a pattern finder. Call `open()` before searching.
-
-### `open(data, options?)`
-
-```ts
-type Ptr89Arch = "arm" | "c166";
-
-interface Ptr89OpenOptions {
-	arch?: Ptr89Arch;
-	base?: number;
-	align?: number;
-}
-
-open(data: Uint8Array, options?: Ptr89OpenOptions): Promise<void>;
-```
-
-Copies a fullflash into WebAssembly memory. The input buffer is no longer
-needed after the promise resolves. Calling `open()` again replaces the current
-fullflash. Node.js `Buffer` values can be passed directly because `Buffer`
-extends `Uint8Array`.
-
-- `arch` selects the instruction decoder. Default: `"arm"`.
-- `base` sets the load address. The ARM default is `0xA0000000`. For C166 it is
-  calculated as `0x1000000 - data.byteLength`.
-- `align` sets the search alignment in bytes. Default: `1`.
-
-### `find(pattern, limit?)`
-
-```ts
-find(pattern: string, limit?: number): Ptr89SearchResult[];
-```
-
-Finds one pattern in the opened fullflash. The default limit is `100`; a limit
-of `0` disables it. `address` is the resolved pattern result, while `offset`
-and `bytes` describe its location in the fullflash. Fixed addresses contain
-only `address`:
-
-```ts
-interface Ptr89SearchResult {
-	address: number;
-	offset?: number;
-	bytes?: string;
-}
-```
-
-### `findXRefs(address, limit?)`
-
-```ts
-findXRefs(address: number, limit?: number): Ptr89XRef[];
-```
-
-Finds branches, decoded references and stored pointers to a 32-bit address.
-The default limit is `100`; a limit of `0` disables it:
-
-```ts
-type Ptr89XRefType = "pointer" | "reference" | "branch";
-
-interface Ptr89XRef {
-	type: Ptr89XRefType;
-	xref: number;
-	offset: number;
-	bytes: string;
-}
-```
-
-### `setDebug(enabled)`
-
-```ts
-setDebug(enabled: boolean): void;
-```
-
-Enables or disables decoder and pattern-matching logs from the WebAssembly
-module.
-
-### `close()`
-
-```ts
-close(): void;
-```
-
-Releases the copied fullflash and the underlying Embind object. Calling it
-more than once is safe.
-
-### `prettify(pattern)`
-
-```ts
-prettify(pattern: string): Promise<string>;
-```
-
-Parses a pattern and returns its normalized representation. Invalid patterns
-reject the promise with a syntax error.
-
-All addresses and offsets are unsigned 32-bit numbers represented as JavaScript
-`number` values.
-
-## Building from sources
-
-Build the WebAssembly module from sources:
-
-```bash
-pnpm run build:wasm
-```
-
-The build produces `ptr89_wasm.js`, `ptr89_wasm.wasm` and `ptr89_wasm.d.ts`
-in `build-wasm/`.
 
 # Pattern syntax
 
@@ -371,8 +230,8 @@ B801C4E10200A0E30000C1E5B601D4E11040BDE8??????EA + 20
 ```
 
 Steps:
-1. Pattern `B801C4E10200A0E30000C1E5B601D4E11040BDE8??????EA` found at 0xA009B780
-2. Result is `0xA009B780 + 0x20 = 0xA009B7A0`
+1. Pattern `B801C4E10200A0E30000C1E5B601D4E11040BDE8??????EA` found at 0xA01A39D4
+2. Result is `0xA01A39D4 + 0x20 = 0xA01A39F4`
 
 ## Decode as pointer
 Decoding a pointer value from the bytes found by the pattern.
@@ -394,15 +253,15 @@ For example:
 ```
 
 Steps:
-1. Pattern `B801C4E10200A0E30000C1E5B601D4E11040BDE8??????EA+20` found at 0xA009B7A0
-2. Decoding bytes as pointer at 0xA009B7A0:
+1. Pattern `B801C4E10200A0E30000C1E5B601D4E11040BDE8??????EA+20` found at 0xA01A39F4
+2. Decoding bytes as pointer at 0xA01A39F4:
 	```asm
-	A009B7A0: CC 5B D9 A8 ; 0xA8D95BCC
+	A01A39F4: B8 37 D8 A8 ; 0xA8D837B8
 	```
-3. Result is `0xA8D95BCC + 0x2 = 0xA8D95BCE`
+3. Result is `0xA8D837B8 + 0x2 = 0xA8D837BA`
 
 ## Decode as reference
-Emulating an ARM/THUMB `LDR Rd, [PC, #offset]` instruction found by the pattern.
+Emulating ARM/THUMB `LDR Rd, [PC, #offset]` instruction found by the pattern.
 
 The `&(...)` operator remains ARM-specific. C166 register-pair references are supported by the `LDR{...}` nested form described below.
 
@@ -429,11 +288,10 @@ Steps:
 	```asm
 	A093BB38: 10 97 E6 A8 ; 0xA8E69710
 	```
-
-3. Result is `0xA8E69710 + 0x4 = 0xA8E69714`
+4. Result is `0xA8E69710 + 0x4 = 0xA8E69714`
 
 ## Decode as BL address
-Emulating an architecture-specific direct branch instruction found by the pattern. ARM/THUMB supports `B/BL/BLX` and `LDR PC, [PC, #offset]`. C166 supports `CALLA/CALLR/CALLS/PCALL`, `JMPA/JMPR/JMPS`, and the four-byte bit branches.
+Emulating ARM/THUMB `B/BL/BLX` or `LDR PC, [PC, #offset]` and C166 branch instructions found by the pattern.
 
 Syntax:
 ```bash
@@ -454,7 +312,7 @@ Steps:
 	A06A09A4: 7B D6 E7 FA      ; BLX #0xA0096398
 	```
 
-3. Result is `#0xA0096398 | 1`
+3. Result is `0xA0096398 | 1 = 0xA0096399`
 
 ## Nested patterns for branches
 Follow the branch and checking it for a pattern.
@@ -578,10 +436,13 @@ MOV Rn+1, #PAG(target)
 
 The two C166 `MOV` instructions must be adjacent and `Rn` must be even. `LDR{...}` occupies the first four-byte `MOV`; the following `SEG`/`PAG` load is inspected to reconstruct the linear address. When the raw operands are valid both as a far data pointer and as a huge/code pointer, the nested pattern is checked at both addresses.
 
-For example:
+ARM:
 ```bash
 LDR{ 436f70797269676874204d47432032303034 } 1e ff 2f e1
+```
 
+C166:
+```bash
 # M55 at 0x207680:
 # E6 FC 8C 75  MOV R12, #0x758C = SOF(0x20758C)
 # E6 FD 20 00  MOV R13, #0x20   = SEG(0x20758C)
@@ -590,29 +451,29 @@ LDR{ 436f70797269676874204d47432032303034 } 1e ff 2f e1
 LDR{ E6000700 } E6FD2000
 ```
 
-Steps:
+Steps for ARM:
 1. Pattern `?? ?? ?? ??    1e ff 2f e1` found at 0xA00A0B1C
-3. Emulating LDR at 0xA00A0B1C (+0)
+2. Emulating LDR at 0xA00A0B1C (+0)
    ```asm
    A00A0B1C: 00 00 9F E5  LDR R0, [PC, #+0x0] ; 0xA00A0B24
    ; Emulation: PC + 0x0 = 0xA00A0B24
    ```
-4. Decoding pointer at 0xA00A0B24
+3. Decoding pointer at 0xA00A0B24
 	```asm
 	A00A0B24: 1D 34 0A A0 ; 0xA00A341D
 	```
-5. Checking pattern `436f70797269676874204d47432032303034` at 0xA00A341D
+4. Checking pattern `436f70797269676874204d47432032303034` at 0xA00A341D
 	```asm
  	A00A341D: ds "Copyright MGC 2004 - Nucleus PLUS - Integrator RVCT v. 1.15"
  	```
-6. Result is: `0xA0A63270`
+5. Result is: `0xA00A0B1C`
 
 ## Automatic THUMB bit
 If the found address points to a THUMB `PUSH { ... }` instruction, +1 will be added to the result.
 
 Example:
 ```
-??,06,??,0E,??,38,??,30,??,78,??,42,??,D0,??,29,??,D1,??,42,??,D0,??,20,??,47
+F0B5061C0C1C151C85B068461122??49??????????E0207869466A460009085C307021780134
 ```
 
 Steps:
