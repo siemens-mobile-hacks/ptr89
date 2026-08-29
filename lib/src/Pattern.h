@@ -6,7 +6,6 @@
 #include <tuple>
 #include <cstdint>
 #include <string>
-#include <cstdio>
 #include <vector>
 #include <cstring>
 
@@ -74,8 +73,6 @@ class PatternError: public std::runtime_error {
 
 class Pattern {
 	public:
-		typedef typeof(vprintf) * DebugHandlerFunc;
-
 		struct Memory {
 			uint32_t base;
 			const uint8_t *data;
@@ -111,28 +108,7 @@ class Pattern {
 			return addr >= memory.base && addr + size <= memory.base + memory.size;
 		}
 
-		static void setDebugHandler(DebugHandlerFunc debugHandler) {
-			m_debugHandler = debugHandler;
-		}
-
-		static void debugSectionBegin() {
-			m_debugLevel++;
-		}
-
-		static void debugSectionEnd() {
-			m_debugLevel--;
-		}
-
-		#if defined(_MSC_VER)
-		static void debug(const char *format, ...);
-		static void _debug(const char *format, ...);
-		#else
-		static void debug(const char *format, ...)  __attribute__((format(printf, 1, 2)));
-		static void _debug(const char *format, ...)  __attribute__((format(printf, 1, 2)));
-		#endif
 	private:
-		static DebugHandlerFunc m_debugHandler;
-		static int m_debugLevel;
 		static bool checkSubpatterns(const std::shared_ptr<PtrExp> &pattern, size_t offset, const Memory &memory);
 		static bool fuzzyMatch(const uint8_t *bytes, const uint8_t *masks, int patternSize, const uint8_t *memory);
 		static std::pair<bool, Pattern::SearchResult> decodeResult(const std::shared_ptr<PtrExp> &pattern, uint32_t offset, const Memory &memory);

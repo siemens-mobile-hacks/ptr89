@@ -1,6 +1,7 @@
 #include "Arch.h"
 
 #include <stdexcept>
+#include <spdlog/spdlog.h>
 
 namespace Ptr89 {
 namespace {
@@ -26,14 +27,14 @@ static std::tuple<bool, uint32_t, bool> decodeThumbBL(uint32_t address, const ui
 		int32_t high = static_cast<int32_t>(signExtend(first & 0x7FF, 11, 32) << 12);
 		uint32_t low = (second & 0x7FF) << 1;
 		uint32_t target = (address + 4 + high + low) & 0xFFFFFFFC;
-		Pattern::debug("%08X: %02X %02X %02X %02X  BLX #0x%08X\n", address, bytes[0], bytes[1], bytes[2], bytes[3], target);
+		spdlog::debug("{:08X}: {:02X} {:02X} {:02X} {:02X}  BLX #0x{:08X}", address, bytes[0], bytes[1], bytes[2], bytes[3], target);
 		return { true, target, true };
 	}
 	if ((first & 0xF800) == 0xF000 && (second & 0xF800) == 0xF800) {
 		int32_t high = static_cast<int32_t>(signExtend(first & 0x7FF, 11, 32) << 12);
 		uint32_t low = (second & 0x7FF) << 1;
 		uint32_t target = address + 4 + high + low;
-		Pattern::debug("%08X: %02X %02X %02X %02X  BL #0x%08X\n", address, bytes[0], bytes[1], bytes[2], bytes[3], target);
+		spdlog::debug("{:08X}: {:02X} {:02X} {:02X} {:02X}  BL #0x{:08X}", address, bytes[0], bytes[1], bytes[2], bytes[3], target);
 		return { true, target, false };
 	}
 	return { false, 0, false };
@@ -51,7 +52,7 @@ static std::tuple<bool, uint32_t, bool> decodeArmBL(uint32_t address, const uint
 		int32_t displacement = static_cast<int32_t>(signExtend(instruction & 0xFFFFFF, 24, 30) << 2U);
 		uint32_t h = (instruction & 0x01000000) != 0 ? 1 : 0;
 		uint32_t target = address + 8 + displacement + (h << 1);
-		Pattern::debug("%08X: %02X %02X %02X %02X  BLX #0x%08X\n", address, bytes[0], bytes[1], bytes[2], bytes[3], target);
+		spdlog::debug("{:08X}: {:02X} {:02X} {:02X} {:02X}  BLX #0x{:08X}", address, bytes[0], bytes[1], bytes[2], bytes[3], target);
 		return { true, target, true };
 	}
 	if ((instruction & 0x0F000000) == 0x0B000000 || (instruction & 0x0F000000) == 0x0A000000) {
@@ -59,7 +60,7 @@ static std::tuple<bool, uint32_t, bool> decodeArmBL(uint32_t address, const uint
 		uint32_t target = address + 8 + displacement;
 		uint32_t condition = (instruction & 0xF0000000) >> 28;
 		bool link = (instruction & 0x0F000000) == 0x0B000000;
-		Pattern::debug("%08X: %02X %02X %02X %02X  B%s%s #0x%08X\n", address,
+		spdlog::debug("{:08X}: {:02X} {:02X} {:02X} {:02X}  B{}{} #0x{:08X}", address,
 			bytes[0], bytes[1], bytes[2], bytes[3], link ? "L" : "", MNEMONICS[condition], target);
 		return { true, target, false };
 	}
@@ -74,14 +75,14 @@ static std::pair<bool, uint32_t> decodeThumbB(uint32_t address, const uint8_t *b
 	if ((instruction & 0xF800) == 0xE000) {
 		int32_t displacement = static_cast<int32_t>(signExtend(instruction & 0x7FF, 11, 32) << 1);
 		uint32_t target = address + 4 + displacement;
-		Pattern::debug("%08X: %02X %02X        B #0x%08X\n", address, bytes[0], bytes[1], target);
+		spdlog::debug("{:08X}: {:02X} {:02X}        B #0x{:08X}", address, bytes[0], bytes[1], target);
 		return { true, target };
 	}
 	if ((instruction & 0xF000) == 0xD000) {
 		int32_t displacement = static_cast<int32_t>(signExtend(instruction & 0xFF, 8, 32) << 1);
 		uint32_t target = address + 4 + displacement;
 		uint32_t condition = (instruction & 0x0F00) >> 8;
-		Pattern::debug("%08X: %02X %02X        B%s #0x%08X\n", address, bytes[0], bytes[1], MNEMONICS[condition], target);
+		spdlog::debug("{:08X}: {:02X} {:02X}        B{} #0x{:08X}", address, bytes[0], bytes[1], MNEMONICS[condition], target);
 		return { true, target };
 	}
 	return { false, 0 };
@@ -95,7 +96,7 @@ static std::pair<bool, uint32_t> decodeThumbLDR(uint32_t address, const uint8_t 
 	uint32_t displacement = (instruction & 0xFF) << 2;
 	uint32_t reg = (instruction & 0x700) >> 8;
 	uint32_t target = address + (address % 4 == 0 ? 4 : 2) + displacement;
-	Pattern::debug("%08X: %02X %02X        LDR %s, [PC, #0x%X] ; 0x%08X\n", address,
+	spdlog::debug("{:08X}: {:02X} {:02X}        LDR {}, [PC, #0x{:X}] ; 0x{:08X}", address,
 		bytes[0], bytes[1], REGNAMES[reg], displacement, target);
 	return { true, target };
 }
@@ -113,7 +114,7 @@ static std::tuple<bool, uint32_t, bool> decodeArmLDR(uint32_t address, const uin
 	uint32_t target = address + 8 + displacement;
 	uint32_t reg = (instruction & 0xF000) >> 12;
 	uint32_t condition = (instruction & 0xF0000000) >> 28;
-	Pattern::debug("%08X: %02X %02X %02X %02X  LDR%s %s, [PC, #%c0x%X] ; 0x%08X\n", address,
+	spdlog::debug("{:08X}: {:02X} {:02X} {:02X} {:02X}  LDR{} {}, [PC, #{}0x{:X}] ; 0x{:08X}", address,
 		bytes[0], bytes[1], bytes[2], bytes[3], MNEMONICS[condition], REGNAMES[reg],
 		add ? '+' : '-', displacement < 0 ? -displacement : displacement, target);
 	return { true, target, reg == 0xF };
@@ -220,7 +221,7 @@ class ArmArch final: public Arch {
 				if (!success || pointer == address || !Pattern::inMemory(memory, pointer))
 					break;
 
-				Pattern::debug("Found thunk at %08X: PC->%08X\n", address, pointer);
+				spdlog::debug("Found thunk at {:08X}: PC->{:08X}", address, pointer);
 				address = pointer;
 			}
 			return address;
@@ -255,7 +256,7 @@ class C166Arch final: public Arch {
 			const uint32_t segment = address & 0xFF0000;
 			const uint16_t targetOffset = static_cast<uint16_t>(address + 2 + displacement);
 			const uint32_t target = segment | targetOffset;
-			Pattern::debug("%08X: %02X %02X        %s #0x%08X\n", address, bytes[0], bytes[1],
+			spdlog::debug("{:08X}: {:02X} {:02X}        {} #0x{:08X}", address, bytes[0], bytes[1],
 				opcode == 0xBB ? "CALLR" : "JMPR", target);
 			return { true, target };
 		}
@@ -286,7 +287,7 @@ class C166Arch final: public Arch {
 				return { false, 0 };
 			}
 
-			Pattern::debug("%08X: %02X %02X %02X %02X  %s #0x%08X\n", address,
+			spdlog::debug("{:08X}: {:02X} {:02X} {:02X} {:02X}  {} #0x{:08X}", address,
 				bytes[0], bytes[1], bytes[2], bytes[3], mnemonic, target);
 			return { true, target };
 		}
@@ -369,7 +370,7 @@ class C166Arch final: public Arch {
 				if (!success || target == address || !Pattern::inMemory(memory, target, 2))
 					break;
 
-				Pattern::debug("Found C166 thunk at %08X: PC->%08X\n", address, target);
+				spdlog::debug("Found C166 thunk at {:08X}: PC->{:08X}", address, target);
 				address = target;
 			}
 			return address;

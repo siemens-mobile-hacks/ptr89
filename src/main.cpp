@@ -2,7 +2,11 @@
 #include "src/Pattern.h"
 #include <cstddef>
 #include <cstdint>
-#include <inttypes.h>
+#include <cstdio>
+#include <format>
+#include <iostream>
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/spdlog.h>
 
 using json = nlohmann::json;
 using namespace Ptr89;
@@ -10,6 +14,10 @@ using namespace Ptr89;
 static constexpr uint64_t C166_ADDRESS_SPACE_SIZE = 0x1000000;
 
 int main(int argc, char *argv[]) {
+	spdlog::set_default_logger(spdlog::stderr_color_mt("ptr89"));
+	spdlog::set_pattern("%v");
+	spdlog::set_level(spdlog::level::warn);
+
 	argparse::ArgumentParser program("ptr89", "1.0.4");
 
 	program.add_argument("-f", "--file")
@@ -65,7 +73,7 @@ int main(int argc, char *argv[]) {
 		std::cerr << "  -b, --base HEX           fullflash base address [default: A0000000 for arm, auto for c166]\n";
 		std::cerr << "  -A, --arch ARCH          architecture: arm or c166 [default: arm]\n";
 		std::cerr << "  -a, --align N            search align [default: 1]\n";
-		std::cerr << "  -V, --verbose            enable debug\n";
+		std::cerr << "  -V, --verbose            enable debug logs\n";
 		std::cerr << "  -J, --json               output as JSON\n";
 		std::cerr << "\n";
 		std::cerr << "Find patterns:\n";
@@ -95,7 +103,7 @@ int main(int argc, char *argv[]) {
 		}
 
 		if (program.get<bool>("--verbose"))
-			Pattern::setDebugHandler(vprintf);
+			spdlog::set_level(spdlog::level::debug);
 
 		auto archName = program.get<std::string>("--arch");
 		Architecture arch;
@@ -164,29 +172,29 @@ int main(int argc, char *argv[]) {
 					}
 					j["patterns"].push_back(patternJson);
 				} else {
-					printf("Pattern: '%s'\n", patternStr.c_str());
-					printf("Found %" PRIu64 " matches:\n", results.size());
+					std::cout << std::format("Pattern: '{}'\n", patternStr);
+					std::cout << std::format("Found {} matches:\n", results.size());
 					for (auto &result: results) {
 						if (pattern->type == PATTERN_TYPE_OFFSET) {
-							printf("  %08X: %08X (offset)\n", result.address, result.value);
+							std::cout << std::format("  {:08X}: {:08X} (offset)\n", result.address, result.value);
 						} else if (pattern->type == PATTERN_TYPE_POINTER) {
-							printf("  %08X: %08X (pointer)\n", result.address, result.value);
+							std::cout << std::format("  {:08X}: {:08X} (pointer)\n", result.address, result.value);
 						} else if (pattern->type == PATTERN_TYPE_REFERENCE) {
-							printf("  %08X: %08X (reference)\n", result.address, result.value);
+							std::cout << std::format("  {:08X}: {:08X} (reference)\n", result.address, result.value);
 						} else if (pattern->type == PATTERN_TYPE_BRANCH_REFERENCE) {
-							printf("  %08X: %08X (branch)\n", result.address, result.value);
+							std::cout << std::format("  {:08X}: {:08X} (branch)\n", result.address, result.value);
 						} else if (pattern->type == PATTERN_TYPE_STATIC_VALUE) {
-							printf("  %08X (static value)\n", result.value);
+							std::cout << std::format("  {:08X} (static value)\n", result.value);
 						}
 					}
-					printf("\n");
+					std::cout << '\n';
 				}
 			}
 			auto end = duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 			j["elapsed"] = end - start;
 
 			if (!asJSON) {
-				printf("Search done in %" PRIu64 " ms\n", end - start);
+				std::cout << std::format("Search done in {} ms\n", end - start);
 			}
 		} else if (program.is_used("--xrefs")) {
 			uint32_t addr = stoll(program.get<std::string>("--xrefs"), NULL, 16);
@@ -212,24 +220,24 @@ int main(int argc, char *argv[]) {
 					j["results"].push_back(item);
 				}
 			} else {
-				printf("Searching x-refs for %08X\n", addr);
-				printf("Found %" PRIu64 " matches:\n", results.size());
+				std::cout << std::format("Searching x-refs for {:08X}\n", addr);
+				std::cout << std::format("Found {} matches:\n", results.size());
 				for (auto &result: results) {
 					if (result.type == XREF_TYPE_REFERENCE) {
-						printf("  %08X (reference)\n", result.address);
+						std::cout << std::format("  {:08X} (reference)\n", result.address);
 					} else if (result.type == XREF_TYPE_BRANCH_CALL) {
-						printf("  %08X (branch call)\n", result.address);
+						std::cout << std::format("  {:08X} (branch call)\n", result.address);
 					} else if (result.type == XREF_TYPE_POINTER) {
-						printf("  %08X (pointer)\n", result.address);
+						std::cout << std::format("  {:08X} (pointer)\n", result.address);
 					}
 				}
-				printf("\n");
+				std::cout << '\n';
 			}
 			auto end = duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 			j["elapsed"] = end - start;
 
 			if (!asJSON) {
-				printf("Search done in %" PRIu64 " ms\n", end - start);
+				std::cout << std::format("Search done in {} ms\n", end - start);
 			}
 		} else if (program.is_used("--from-ini")) {
 			auto start = duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
@@ -270,13 +278,13 @@ int main(int argc, char *argv[]) {
 					j["patterns"].push_back(patternJson);
 				} else {
 					if (entry.id > 0 && (entry.id & 0xF) == 0)
-						printf("\n");
+						std::cout << '\n';
 
 					if (results.size() > 0 && results[0].value != 0xFFFFFFFF) {
 						auto result = results[0];
-						printf("%04X: 0x%08X   ;%4X: %s\n", entry.id * 4, result.value, entry.id, entry.funcName.c_str());
+						std::cout << std::format("{:04X}: 0x{:08X}   ;{:4X}: {}\n", entry.id * 4, result.value, entry.id, entry.funcName);
 					} else {
-						printf(";%03X:              ;%4X: %s\n", entry.id * 4, entry.id, entry.funcName.c_str());
+						std::cout << std::format(";{:03X}:              ;{:4X}: {}\n", entry.id * 4, entry.id, entry.funcName);
 					}
 				}
 			}
@@ -287,20 +295,20 @@ int main(int argc, char *argv[]) {
 			if (asJSON) {
 				j["pattern"] = Pattern::stringify(Pattern::parse(patternStr));
 			} else {
-				printf("Pattern: %s\n", Pattern::stringify(Pattern::parse(patternStr)).c_str());
+				std::cout << std::format("Pattern: {}\n", Pattern::stringify(Pattern::parse(patternStr)));
 			}
 		}
 
-		if (asJSON) {
-			printf("%s\n", j.dump(2).c_str());
-		}
+		if (asJSON)
+			std::cout << j.dump(2) << '\n';
 
 	} catch (const std::exception &err) {
 		if (program.get<bool>("--json")) {
 			j["error"] = err.what();
-			printf("%s\n", j.dump(2).c_str());
+			std::cout << j.dump(2) << '\n';
 		} else {
-			std::cerr << "ERROR: " << err.what() << "\n\n";
+			spdlog::error("ERROR: {}", err.what());
+			std::cerr << '\n';
 			showHelp();
 		}
 		return 1;

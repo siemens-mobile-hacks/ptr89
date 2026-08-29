@@ -2,8 +2,6 @@
 
 #include <cstddef>
 #include <cstring>
-#include <cstdarg>
-#include <stdexcept>
 
 namespace Ptr89 {
 
@@ -115,27 +113,6 @@ std::vector<std::string> strSplit(const std::string &sep, const std::string &str
 	}
 
 	return result;
-}
-
-std::string strprintf(const char *format, ...) {
-	va_list v;
-
-	std::string out;
-
-	va_start(v, format);
-	int n = vsnprintf(nullptr, 0, format, v);
-	va_end(v);
-
-	if (n <= 0)
-		throw std::runtime_error("vsnprintf error...");
-
-	out.resize(n);
-
-	va_start(v, format);
-	vsnprintf(&out[0], out.size() + 1, format, v);
-	va_end(v);
-
-	return out;
 }
 
 }; // namespace Ptr89

@@ -6,6 +6,7 @@ Rules-Requires-Root: no
 Build-Depends:
  debhelper-compat (= 12),
  cmake,
+ g++ (>= 13),
  quilt
 Standards-Version: 4.5.0
 

@@ -2,13 +2,20 @@ cmake_minimum_required(VERSION 3.10)
 
 project(ptr89)
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
 include_directories("./lib" "./third_party/argparse/include" "./third_party/json/include")
 
+set(SPDLOG_USE_STD_FORMAT ON CACHE BOOL "" FORCE)
+set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
+set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+add_subdirectory(third_party/spdlog EXCLUDE_FROM_ALL)
+
 set(LIB_SRC lib/src/Arch.cpp lib/src/Pattern.cpp lib/src/Tokenizer.cpp lib/src/Parser.cpp lib/src/utils.cpp)
 
 add_executable(ptr89 src/main.cpp ${LIB_SRC})
+target_link_libraries(ptr89 PRIVATE spdlog::spdlog)
 target_precompile_headers(ptr89 PRIVATE <argparse/argparse.hpp> <nlohmann/json.hpp> <string> <vector> <memory> <regex> <map> <tuple> <stdexcept>)
 install(TARGETS ptr89)
 
@@ -29,5 +36,6 @@ endif()
 if (BUILD_TESTS)
 	enable_testing()
 	add_executable(ptr89-tests src/tests.cpp ${LIB_SRC})
+	target_link_libraries(ptr89-tests PRIVATE spdlog::spdlog)
 	add_test(NAME test COMMAND ptr89-tests)
 endif()

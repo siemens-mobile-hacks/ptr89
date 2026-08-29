@@ -2,7 +2,7 @@
 #include <ptr89.h>
 #include <src/Arch.h>
 #include <cassert>
-#include <cstdio>
+#include <iostream>
 
 using namespace Ptr89;
 
@@ -238,11 +238,10 @@ static void testThumbPattern() {
 
 
 int main() {
-	Pattern::setDebugHandler(vprintf);
 	testArmDecoder();
 	testC166Decoder();
 	testArmPattern();
 	testThumbPattern();
-	printf("All tests passed.\n");
+	std::cout << "All tests passed.\n";
 	return 0;
 }

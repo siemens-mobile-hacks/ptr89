@@ -17,7 +17,7 @@ The name was chosen in respect to [Viktor89](https://patches.kibab.com/user.php5
 - Windows: download .exe in [Releases](https://github.com/siemens-mobile-hacks/ptr89/releases).
 - ArchLinux: `yay -S ptr89-git`
 - OSX: `brew install siemens-mobile-hacks/tap/ptr89`
-- Ubuntu/Debian: download .deb in [Releases](https://github.com/siemens-mobile-hacks/ptr89/releases).
+- Ubuntu 24.04/Debian 13+: download .deb in [Releases](https://github.com/siemens-mobile-hacks/ptr89/releases).
 - Build from sources:
 	```bash
  	git clone https://github.com/siemens-mobile-hacks/ptr89
@@ -25,7 +25,7 @@ The name was chosen in respect to [Viktor89](https://patches.kibab.com/user.php5
 	git submodule init
  	git submodule update
 
- 	# Ubuntu/Debian
+	# Ubuntu 24.04/Debian 13+
 	fakeroot debian/rules binary
 
 	# OSX, Linux, Unix, MinGW
@@ -48,7 +48,7 @@ Global options:
   -b, --base HEX           fullflash base address [default: A0000000 for arm, auto for c166]
   -A, --arch ARCH          architecture: arm or c166 [default: arm]
   -a, --align N            search align [default: 1]
-  -V, --verbose            enable debug
+  -V, --verbose            enable debug logs
   -J, --json               output as JSON
 
 Find patterns:
