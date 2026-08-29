@@ -69,9 +69,9 @@ Prettify pattern:
   --prettify STRING        pattern
 ```
 
-### C166 fullflash
+### C166
 
-Select C166 with `-A c166` or `--arch c166`. If `--base` is omitted, the image is placed at the top of the 16 MiB C166 address space:
+For C166, use `-A c166` or `--arch c166`. If `--base` is not specified, it is calculated automatically:
 
 ```
 base = 16 * 1024 * 1024 - fullflash_size
