@@ -171,14 +171,15 @@ uint32_t Pattern::resolveThunks(uint32_t addr, const Memory &memory) {
 	return getArch(memory.arch).resolveThunks(addr, memory);
 }
 
-std::pair<bool, Pattern::SearchResult> Pattern::decodeResult(const std::shared_ptr<PtrExp> &pattern, uint32_t offset, const Memory &memory) {
+std::pair<bool, Pattern::SearchResult> Pattern::decodeResult(const std::shared_ptr<PtrExp> &pattern, uint32_t matchOffset, const Memory &memory) {
+	uint32_t offset = matchOffset + pattern->inputOffset;
 	uint32_t address = memory.base + offset;
 
 	switch (pattern->type) {
 		case RESULT_TYPE_OFFSET:
 		{
 			uint32_t value = getArch(memory.arch).offsetValue(address, offset, memory);
-			return { true, { value, offset, pattern->bytes.size() } };
+			return { true, { value, matchOffset, pattern->bytes.size() } };
 		}
 		break;
 
@@ -318,7 +319,7 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 					spdlog::debug("Possible result at {:08X}", memory.base + foundOffset);
 
 					if (checkSubpatterns(pattern, foundOffset, memory)) {
-						auto [isDecoded, result] = decodeResult(pattern, foundOffset + pattern->inputOffset, memory);
+						auto [isDecoded, result] = decodeResult(pattern, foundOffset, memory);
 						if (isDecoded) {
 							searchResults.push_back(result);
 
@@ -354,7 +355,7 @@ std::vector<Pattern::SearchResult> Pattern::find(const std::shared_ptr<PtrExp> &
 				size_t foundOffset = i - firstNonWildcardByte;
 				spdlog::debug("Possible result at {:08X}", memory.base + foundOffset);
 				if (checkSubpatterns(pattern, foundOffset, memory)) {
-					auto [isDecoded, result] = decodeResult(pattern, foundOffset + pattern->inputOffset, memory);
+					auto [isDecoded, result] = decodeResult(pattern, foundOffset, memory);
 					if (isDecoded) {
 						searchResults.push_back(result);
 

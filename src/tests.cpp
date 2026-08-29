@@ -253,6 +253,9 @@ static void testThumbPattern() {
 	Pattern::Memory functionMemory = { 0xA0000000, functionBytes, sizeof(functionBytes), 1, ARCH_ARM };
 	auto functionResults = Pattern::find(Pattern::parse("10 B5"), functionMemory, 1);
 	assert(functionResults.size() == 1 && functionResults[0].address == 0xA0000001 && functionResults[0].size == 2);
+	auto adjustedResults = Pattern::find(Pattern::parse("00 BF + 1"), functionMemory, 1);
+	assert(adjustedResults.size() == 1 && adjustedResults[0].address == 0xA0000003 &&
+		adjustedResults[0].offset == 2 && adjustedResults[0].size == 2);
 }
 
 

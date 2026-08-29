@@ -107,7 +107,7 @@ class Pattern {
 	private:
 		static bool checkSubpatterns(const std::shared_ptr<PtrExp> &pattern, size_t offset, const Memory &memory);
 		static bool fuzzyMatch(const uint8_t *bytes, const uint8_t *masks, int patternSize, const uint8_t *memory);
-		static std::pair<bool, SearchResult> decodeResult(const std::shared_ptr<PtrExp> &pattern, uint32_t offset, const Memory &memory);
+		static std::pair<bool, SearchResult> decodeResult(const std::shared_ptr<PtrExp> &pattern, uint32_t matchOffset, const Memory &memory);
 
 };
 

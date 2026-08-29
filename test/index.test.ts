@@ -41,6 +41,11 @@ describe("Ptr89 WASM", () => {
 			offset: 10,
 			bytes: "10B5",
 		}]);
+		expect(ptr89.find("00 BF + 1", 1)).toEqual([{
+			address: 0xA0000003,
+			offset: 2,
+			bytes: "00BF",
+		}]);
 		expect(ptr89.find("48", 1, 2)).toEqual([]);
 
 		ptr89.close();
