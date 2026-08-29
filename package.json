@@ -1,0 +1,35 @@
+{
+	"name": "@sie-js/ptr89",
+	"version": "1.0.4",
+	"description": "ARM/THUMB/C166 binary pattern finder",
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"scripts": {
+		"build": "tsc",
+		"build:wasm": "tools/build_wasm.sh",
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"files": [
+		"dist/*",
+		"build-wasm/*.js",
+		"build-wasm/*.wasm",
+		"build-wasm/*.d.ts"
+	],
+	"imports": {
+		"#build/*": "./build-wasm/*"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/siemens-mobile-hacks/ptr89.git"
+	},
+	"author": "Siemens Mobile Hackers",
+	"license": "MIT",
+	"packageManager": "pnpm@11.3.0",
+	"devDependencies": {
+		"@types/node": "^24.10.0",
+		"typescript": "^5.9.3",
+		"vitest": "^3.2.6"
+	}
+}

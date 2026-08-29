@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   build:
@@ -25,6 +26,23 @@ jobs:
           tools/build_deb.sh
           tools/build_win.sh
           tools/build_tar.sh
+
+      - uses: mymindstorm/setup-emsdk@v14
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm install --global corepack@latest npm@latest
+      - run: corepack enable pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: emcmake cmake -B build-wasm -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS:BOOL=TRUE
+      - run: cmake --build build-wasm
+      - run: pnpm run build
+      - run: pnpm test
+      - if: github.event_name == 'release'
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - uses: softprops/action-gh-release@v1
         with:

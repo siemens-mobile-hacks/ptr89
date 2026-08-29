@@ -129,6 +129,133 @@ Search done in 143 ms
 ptr89 -f EL71v45.bin --from-ini ELKA.ini > swilib.vkp
 ```
 
+# JAVASCRIPT MODULE
+
+[![NPM Version](https://img.shields.io/npm/v/%40sie-js%2Fptr89)](https://www.npmjs.com/package/@sie-js/ptr89)
+
+Install the package with pnpm:
+
+```bash
+pnpm add @sie-js/ptr89
+```
+
+## Example
+
+```ts
+import { Ptr89 } from "@sie-js/ptr89";
+
+const ptr89 = new Ptr89();
+await ptr89.open(fullflash, { arch: "c166" });
+
+const matches = ptr89.find("LDR{ DB00 }", 100);
+const xrefs = ptr89.findXRefs(0x9A9332, 100);
+
+ptr89.close();
+```
+
+## API
+
+### `new Ptr89()`
+
+Creates a pattern finder. Call `open()` before searching.
+
+### `open(data, options?)`
+
+```ts
+open(data: Uint8Array, options?: {
+	arch?: "arm" | "c166",
+	base?: number,
+	align?: number,
+}): Promise<void>;
+```
+
+Copies a fullflash into WebAssembly memory. The input buffer is no longer
+needed after the promise resolves. Calling `open()` again replaces the current
+fullflash. Node.js `Buffer` values can be passed directly because `Buffer`
+extends `Uint8Array`.
+
+- `arch` selects the instruction decoder. Default: `"arm"`.
+- `base` sets the load address. The ARM default is `0xA0000000`. For C166 it is
+  calculated as `0x1000000 - data.byteLength`.
+- `align` sets the search alignment in bytes. Default: `1`.
+
+### `find(pattern, limit?)`
+
+```ts
+find(pattern: string, limit?: number): PatternSearchResult[];
+```
+
+Finds one pattern in the opened fullflash. The default limit is `100`; a limit
+of `0` disables it. The return value has the same fields and type names as CLI
+JSON output:
+
+```ts
+type PatternSearchResult = {
+	type: "offset" | "pointer" | "reference" | "branch" | "static_value";
+	address: number;
+	offset: number;
+	value: number;
+};
+```
+
+### `findXRefs(address, limit?)`
+
+```ts
+findXRefs(address: number, limit?: number): XRefSearchResult[];
+```
+
+Finds branches, decoded references and stored pointers to a 32-bit address.
+The default limit is `100`; a limit of `0` disables it.
+
+```ts
+type XRefSearchResult = {
+	type: "pointer" | "reference" | "branch";
+	address: number;
+	offset: number;
+};
+```
+
+### `setDebug(enabled)`
+
+```ts
+setDebug(enabled: boolean): void;
+```
+
+Enables or disables decoder and pattern-matching logs from the WebAssembly
+module.
+
+### `close()`
+
+```ts
+close(): void;
+```
+
+Releases the copied fullflash and the underlying Embind object. Calling it
+more than once is safe.
+
+### `prettify(pattern)`
+
+```ts
+prettify(pattern: string): Promise<string>;
+```
+
+Parses a pattern and returns its normalized representation. Invalid patterns
+reject the promise with a syntax error.
+
+All addresses and offsets are unsigned 32-bit numbers represented as JavaScript
+`number` values.
+
+## Building from sources
+
+Build the WebAssembly module from sources:
+
+```bash
+pnpm run build:wasm
+```
+
+The build produces `ptr89_wasm.js`, `ptr89_wasm.wasm` and `ptr89_wasm.d.ts`
+in `build-wasm/`.
+
 # Pattern syntax
 
 Syntax is fully compatible with WinHex, Smelter and Ghidra SRE patterns.
