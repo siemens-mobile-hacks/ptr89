@@ -99,7 +99,8 @@ findXRefs(address: number, limit?: number): Ptr89XRef[];
 ```
 
 Finds branches, decoded references and stored pointers to a 32-bit address.
-The default limit is `100`; a limit of `0` disables it:
+C166 code and data pointers are both supported. The default limit is `100`; a
+limit of `0` disables it:
 
 ```ts
 type Ptr89XRefType = "pointer" | "reference" | "branch";

@@ -109,6 +109,32 @@ describe("Ptr89 WASM", () => {
 		ptr89.close();
 	});
 
+	it("finds C166 code and data x-refs", async () => {
+		const memory = new Uint8Array(0x40).fill(0xCC);
+		memory.set([0xDA, 0xFF, 0xE0, 0xFF], 0x00); // CALLS 0xFF, 0xFFE0
+		memory.set([0xE0, 0xFF, 0xFF, 0x00], 0x04); // Code pointer 0xFF:0xFFE0
+		memory.set([0xE6, 0xF4, 0xE0, 0xFF], 0x08); // MOV R4, #SOF(0xFFFFE0)
+		memory.set([0xE6, 0xF5, 0xFF, 0x00], 0x0C); // MOV R5, #SEG(0xFFFFE0)
+		memory.set([0xA0, 0x3D, 0x7E, 0x01], 0x10); // Data pointer 0x017E:0x3DA0
+		memory.set([0xE6, 0xF4, 0xA0, 0x3D], 0x14); // MOV R4, #POF(0x5FBDA0)
+		memory.set([0xE6, 0xF5, 0x7E, 0x01], 0x18); // MOV R5, #PAG(0x5FBDA0)
+		const ptr89 = new Ptr89();
+		await ptr89.open(memory, { arch: "c166" });
+
+		expect(ptr89.findXRefs(0xFFFFE0, 10)).toEqual(expect.arrayContaining([
+			{ type: "branch", xref: 0xFFFFC0, offset: 0x00 },
+			{ type: "pointer", xref: 0xFFFFC4, offset: 0x04 },
+			{ type: "reference", xref: 0xFFFFC8, offset: 0x08 },
+		]));
+		expect(ptr89.findXRefs(0x5FBDA0, 10)).toEqual(expect.arrayContaining([
+			{ type: "pointer", xref: 0xFFFFD0, offset: 0x10 },
+			{ type: "reference", xref: 0xFFFFD4, offset: 0x14 },
+		]));
+		expect(ptr89.findXRefs(0xFFFFE1, 10)).toEqual([]);
+
+		ptr89.close();
+	});
+
 	it("reopens memory", async () => {
 		const ptr89 = new Ptr89();
 		await ptr89.open(Uint8Array.from([

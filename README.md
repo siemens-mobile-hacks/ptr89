@@ -106,6 +106,8 @@ Found 3 xrefs:
 Search done in 1612 ms
 ```
 
+ARM x-refs include ARM/THUMB branches, `LDR`/`ADR` references, and 32-bit pointers. C166 x-refs include branches, large-model `SOF`/`SEG` and `POF`/`PAG` register pairs, and stored code or data pointers.
+
 ### Find patterns
 ```bash
 $ ptr89 -f EL71v45.bin -p "F0B5061C0C1C151C85B068461122??49??????????E0207869466A460009085C307021780134"
@@ -261,7 +263,7 @@ Steps:
 3. Result is `0xA8D837B8 + 0x2 = 0xA8D837BA`
 
 ## Decode as reference
-Emulating ARM/THUMB `LDR Rd, [PC, #offset]` instruction found by the pattern.
+Emulating ARM/THUMB `LDR Rd, [PC, #offset]` or `ADR Rd, address` instruction found by the pattern.
 
 The `&(...)` operator remains ARM-specific. C166 register-pair references are supported by the `LDR{...}` nested form described below.
 
@@ -413,10 +415,10 @@ Follow the reference and checking it for a pattern.
 
 Syntax:
 ```bash
-# ARM LDR or the first MOV of a C166 pointer pair (4-byte instruction)
+# ARM LDR/ADR or the first MOV of a C166 pointer pair (4-byte instruction)
 LDR{ subPattern }
 
-# THUMB LDR (2-byte instruction; not supported for C166)
+# THUMB LDR/ADR or the first 2-byte MOV of a C166 pointer pair
 LDR[ subPattern ]
 ```
 
@@ -424,6 +426,7 @@ Supported instructions:
 ```
 # ARM/THUMB
 LDR Rd, [PC, #offset]
+ADR Rd, address
 
 # C166 large model: huge/code pointer
 MOV Rn, #SOF(target)
@@ -434,7 +437,7 @@ MOV Rn, #POF(target)
 MOV Rn+1, #PAG(target)
 ```
 
-The two C166 `MOV` instructions must be adjacent and `Rn` must be even. `LDR{...}` occupies the first four-byte `MOV`; the following `SEG`/`PAG` load is inspected to reconstruct the linear address. When the raw operands are valid both as a far data pointer and as a huge/code pointer, the nested pattern is checked at both addresses.
+The two C166 `MOV` instructions must be adjacent and `Rn` must be even. Use `LDR{...}` for a four-byte first `MOV` and `LDR[...]` for a two-byte first `MOV`. The following `SEG`/`PAG` load is inspected to reconstruct the linear address. When the operands are valid both as a far data pointer and as a huge/code pointer, the nested pattern is checked at both addresses.
 
 ARM:
 ```bash

@@ -81,6 +81,8 @@ static void testArmDecoder() {
 
 	// 00 01 1F E5: LDR R0, [PC, #-0x100] -> 0xA0000008
 	assert(arch.decodeReferences4(0xA0000100, I({ 0x00, 0x01, 0x1F, 0xE5 }), memory) == std::vector<uint32_t>{ pointer });
+	// 00 00 8F E5: STR R0, [PC], not a reference load.
+	assert(arch.decodeReferences4(0xA0000000, I({ 0x00, 0x00, 0x8F, 0xE5 }), memory).empty());
 
 	// 00 F1 9F E5: LDR PC, [PC, #0x100] -> 0xA0000108
 	assert(arch.decodeBranch4(0xA0000000, I({ 0x00, 0xF1, 0x9F, 0xE5 }), memory) == std::make_pair(true, pointer));
@@ -94,6 +96,43 @@ static void testArmDecoder() {
 	// 00 F0 FE EF: BLX 0xA0001000; ARM function pointer is 0xA0001000.
 	data[0] = 0x00; data[1] = 0xF0; data[2] = 0xFE; data[3] = 0xEF;
 	assert(arch.decodeBranchReference(0, memory) == std::make_tuple(true, 0xA0001000U, 4U));
+
+	std::vector<uint8_t> xrefBytes(0x50);
+	uint32_t xrefTarget = 0xA0000040;
+	xrefBytes[0x00] = 0x0E; xrefBytes[0x01] = 0x00; xrefBytes[0x02] = 0x00; xrefBytes[0x03] = 0xEB;	// BL 0xA0000040
+	xrefBytes[0x04] = 0x41; xrefBytes[0x05] = 0x00; xrefBytes[0x06] = 0x00; xrefBytes[0x07] = 0xA0;	// Pointer to 0xA0000041
+	xrefBytes[0x08] = 0x10; xrefBytes[0x09] = 0x00; xrefBytes[0x0A] = 0x9F; xrefBytes[0x0B] = 0xE5;	// LDR R0, [PC, #0x10] -> 0xA0000020
+	xrefBytes[0x0C] = 0x2C; xrefBytes[0x0D] = 0x00; xrefBytes[0x0E] = 0x8F; xrefBytes[0x0F] = 0xE2;	// ADR R0, 0xA0000040
+	xrefBytes[0x10] = 0x16; xrefBytes[0x11] = 0xE0;	// B 0xA0000040
+	xrefBytes[0x12] = 0x0B; xrefBytes[0x13] = 0xA0;	// ADR R0, 0xA0000040
+	xrefBytes[0x14] = 0x03; xrefBytes[0x15] = 0x48;	// LDR R0, [PC, #0xC] -> 0xA0000024
+	xrefBytes[0x20] = 0x41; xrefBytes[0x21] = 0x00; xrefBytes[0x22] = 0x00; xrefBytes[0x23] = 0xA0;	// Pointer to 0xA0000041
+	xrefBytes[0x24] = 0x41; xrefBytes[0x25] = 0x00; xrefBytes[0x26] = 0x00; xrefBytes[0x27] = 0xA0;	// Pointer to 0xA0000041
+	Pattern::Memory xrefMemory = { 0xA0000000, xrefBytes.data(), xrefBytes.size(), 1, ARCH_ARM };
+	auto xrefs = Pattern::finXRefs(xrefTarget, xrefMemory);
+	auto hasXRef = [&xrefs](ResultType type, uint32_t address) {
+		for (const auto &xref: xrefs) {
+			if (xref.type == type && xref.address == address)
+				return true;
+		}
+		return false;
+	};
+	assert(hasXRef(RESULT_TYPE_BRANCH, 0xA0000000));
+	assert(hasXRef(RESULT_TYPE_POINTER, 0xA0000004));
+	assert(hasXRef(RESULT_TYPE_REFERENCE, 0xA0000008));
+	assert(hasXRef(RESULT_TYPE_REFERENCE, 0xA000000C));
+	assert(hasXRef(RESULT_TYPE_REFERENCE, 0xA0000012));
+	assert(hasXRef(RESULT_TYPE_REFERENCE, 0xA0000014));
+	assert(hasXRef(RESULT_TYPE_POINTER, 0xA0000020));
+	assert(hasXRef(RESULT_TYPE_POINTER, 0xA0000024));
+	auto thumbXRefs = Pattern::finXRefs(xrefTarget | 1U, xrefMemory);
+	assert(!hasXRef(RESULT_TYPE_BRANCH, 0xA0000010));
+	bool hasThumbBranch = false;
+	for (const auto &xref: thumbXRefs) {
+		if (xref.type == RESULT_TYPE_BRANCH && xref.address == 0xA0000010)
+			hasThumbBranch = true;
+	}
+	assert(hasThumbBranch);
 }
 
 static void testC166Decoder() {
@@ -203,6 +242,48 @@ static void testC166Decoder() {
 	Pattern::Memory c166Memory = { 0x200000, patternBytes, sizeof(patternBytes), 1, ARCH_C166 };
 	auto c166Results = Pattern::find(pattern, c166Memory, 1);
 	assert(c166Results.size() == 1 && c166Results[0].address == 0x200000 && c166Results[0].size == 2);
+
+	std::vector<uint8_t> xrefBytes(0x40, 0xCC);
+	uint32_t codeTarget = 0x250020;
+	uint32_t dataTarget = 0x5FBDA0;
+	xrefBytes[0x00] = 0xDA; xrefBytes[0x01] = 0x25; xrefBytes[0x02] = 0x20; xrefBytes[0x03] = 0x00;	// CALLS 0x25, 0x0020
+	xrefBytes[0x04] = 0x20; xrefBytes[0x05] = 0x00; xrefBytes[0x06] = 0x25; xrefBytes[0x07] = 0x00;	// Code pointer 0x25:0x0020
+	xrefBytes[0x08] = 0xE6; xrefBytes[0x09] = 0xF4; xrefBytes[0x0A] = 0x20; xrefBytes[0x0B] = 0x00;	// MOV R4, #SOF(0x250020)
+	xrefBytes[0x0C] = 0xE6; xrefBytes[0x0D] = 0xF5; xrefBytes[0x0E] = 0x25; xrefBytes[0x0F] = 0x00;	// MOV R5, #SEG(0x250020)
+	xrefBytes[0x10] = 0xA0; xrefBytes[0x11] = 0x3D; xrefBytes[0x12] = 0x7E; xrefBytes[0x13] = 0x01;	// Data pointer 0x017E:0x3DA0
+	xrefBytes[0x14] = 0xE6; xrefBytes[0x15] = 0xF4; xrefBytes[0x16] = 0xA0; xrefBytes[0x17] = 0x3D;	// MOV R4, #POF(0x5FBDA0)
+	xrefBytes[0x18] = 0xE6; xrefBytes[0x19] = 0xF5; xrefBytes[0x1A] = 0x7E; xrefBytes[0x1B] = 0x01;	// MOV R5, #PAG(0x5FBDA0)
+	Pattern::Memory xrefMemory = { 0x250000, xrefBytes.data(), xrefBytes.size(), 1, ARCH_C166 };
+	auto codeXRefs = Pattern::finXRefs(codeTarget, xrefMemory);
+	auto dataXRefs = Pattern::finXRefs(dataTarget, xrefMemory);
+	auto hasXRef = [](const std::vector<Pattern::XRef> &xrefs, ResultType type, uint32_t address) {
+		for (const auto &xref: xrefs) {
+			if (xref.type == type && xref.address == address)
+				return true;
+		}
+		return false;
+	};
+	assert(hasXRef(codeXRefs, RESULT_TYPE_BRANCH, 0x250000));
+	assert(hasXRef(codeXRefs, RESULT_TYPE_POINTER, 0x250004));
+	assert(hasXRef(codeXRefs, RESULT_TYPE_REFERENCE, 0x250008));
+	assert(hasXRef(dataXRefs, RESULT_TYPE_POINTER, 0x250010));
+	assert(hasXRef(dataXRefs, RESULT_TYPE_REFERENCE, 0x250014));
+	assert(Pattern::finXRefs(codeTarget | 1U, xrefMemory).empty());
+	std::array<uint32_t, 2> pointers;
+	assert(arch.decodePointers(0x250010, xrefMemory, pointers) == 2);
+	assert(pointers[0] == 0x7E3DA0 && pointers[1] == dataTarget);
+
+	std::vector<uint8_t> shortMovBytes(8);
+	Pattern::Memory shortMovMemory = { 0x50000, shortMovBytes.data(), shortMovBytes.size(), 1, ARCH_C166 };
+	// E0 A4: MOV R4, #0xA; E0 55: MOV R5, #0x5.
+	assert(arch.decodeReferences2(0x50000, I({ 0xE0, 0xA4, 0xE0, 0x55 }), shortMovMemory) ==
+		std::vector<uint32_t>({ 0x5000A, 0x1400A }));
+	// E0 A4: MOV R4, #0xA; E6 F5 05 00: MOV R5, #0x5.
+	assert(arch.decodeReferences2(0x50000, I({ 0xE0, 0xA4, 0xE6, 0xF5, 0x05, 0x00 }), shortMovMemory) ==
+		std::vector<uint32_t>({ 0x5000A, 0x1400A }));
+	// E6 F4 0A 00: MOV R4, #0xA; E0 55: MOV R5, #0x5.
+	assert(arch.decodeReferences4(0x50000, I({ 0xE6, 0xF4, 0x0A, 0x00, 0xE0, 0x55 }), shortMovMemory) ==
+		std::vector<uint32_t>({ 0x5000A, 0x1400A }));
 
 }
 

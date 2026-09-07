@@ -1,5 +1,6 @@
 #include "Arch.h"
 
+#include <bit>
 #include <stdexcept>
 #include <spdlog/spdlog.h>
 
@@ -92,9 +93,12 @@ static std::pair<bool, uint32_t> decodeThumbB(uint32_t address, const uint8_t *b
 		return { true, target };
 	}
 	if ((instruction & 0xF000) == 0xD000) {
+		uint32_t condition = (instruction & 0x0F00) >> 8;
+		if (condition >= 0xE)
+			return { false, 0 };
+
 		int32_t displacement = static_cast<int32_t>(signExtend(instruction & 0xFF, 8, 32) << 1);
 		uint32_t target = address + 4 + displacement;
-		uint32_t condition = (instruction & 0x0F00) >> 8;
 		if (spdlog::should_log(spdlog::level::debug)) {
 			spdlog::debug("{:08X}: {:02X} {:02X}        B{} #0x{:08X}",
 				address, bytes[0], bytes[1], MNEMONICS[condition], target);
@@ -119,12 +123,28 @@ static std::pair<bool, uint32_t> decodeThumbLDR(uint32_t address, const uint8_t 
 	return { true, target };
 }
 
+static std::pair<bool, uint32_t> decodeThumbADR(uint32_t address, const uint8_t *bytes) {
+	uint16_t instruction = (bytes[1] << 8) | bytes[0];
+	if ((address % 2) != 0 || (instruction & 0xF800) != 0xA000)
+		return { false, 0 };
+
+	uint32_t displacement = (instruction & 0xFF) << 2;
+	uint32_t reg = (instruction & 0x700) >> 8;
+	uint32_t target = ((address + 4) & ~3U) + displacement;
+	if (spdlog::should_log(spdlog::level::debug)) {
+		spdlog::debug("{:08X}: {:02X} {:02X}        ADR {}, #0x{:X} ; 0x{:08X}",
+			address, bytes[0], bytes[1], REGNAMES[reg], displacement, target);
+	}
+	return { true, target };
+}
+
 static std::tuple<bool, uint32_t, bool> decodeArmLDR(uint32_t address, const uint8_t *bytes) {
 	uint32_t instruction = static_cast<uint32_t>(bytes[0]) |
 		(static_cast<uint32_t>(bytes[1]) << 8) |
 		(static_cast<uint32_t>(bytes[2]) << 16) |
 		(static_cast<uint32_t>(bytes[3]) << 24);
-	if ((address % 4) != 0 || (instruction & 0xE0F0000) != 0x40F0000)
+	if ((address % 4) != 0 || (instruction & 0x0F7F0000) != 0x051F0000 ||
+		(instruction & 0xF0000000) == 0xF0000000)
 		return { false, 0, false };
 
 	bool add = (instruction & (1U << 23)) != 0;
@@ -138,6 +158,68 @@ static std::tuple<bool, uint32_t, bool> decodeArmLDR(uint32_t address, const uin
 			add ? '+' : '-', displacement < 0 ? -displacement : displacement, target);
 	}
 	return { true, target, reg == 0xF };
+}
+
+static std::pair<bool, uint32_t> decodeArmADR(uint32_t address, const uint8_t *bytes) {
+	uint32_t instruction = static_cast<uint32_t>(bytes[0]) |
+		(static_cast<uint32_t>(bytes[1]) << 8) |
+		(static_cast<uint32_t>(bytes[2]) << 16) |
+		(static_cast<uint32_t>(bytes[3]) << 24);
+	uint32_t opcode = instruction & 0x0FF00000;
+	if ((address % 4) != 0 || (opcode != 0x02800000 && opcode != 0x02400000) ||
+		(instruction & 0x000F0000) != 0x000F0000 || (instruction & 0x0000F000) == 0x0000F000 ||
+		(instruction & 0xF0000000) == 0xF0000000)
+		return { false, 0 };
+
+	uint32_t immediate = std::rotr(instruction & 0xFF, ((instruction >> 8) & 0xF) * 2);
+	bool add = opcode == 0x02800000;
+	uint32_t target = add ? address + 8 + immediate : address + 8 - immediate;
+	uint32_t reg = (instruction & 0xF000) >> 12;
+	uint32_t condition = instruction >> 28;
+	if (spdlog::should_log(spdlog::level::debug)) {
+		spdlog::debug("{:08X}: {:02X} {:02X} {:02X} {:02X}  {}{} {}, PC, #0x{:X} ; 0x{:08X}", address,
+			bytes[0], bytes[1], bytes[2], bytes[3], add ? "ADD" : "SUB", MNEMONICS[condition],
+			REGNAMES[reg], immediate, target);
+	}
+	return { true, target };
+}
+
+static std::tuple<bool, uint8_t, uint32_t, size_t> decodeC166Mov(const uint8_t *bytes, size_t size) {
+	if (size >= 4 && bytes[0] == 0xE6 && bytes[1] >= 0xF0)
+		return { true, bytes[1], bytes[2] | (static_cast<uint32_t>(bytes[3]) << 8), 4 };
+	if (size >= 2 && bytes[0] == 0xE0)
+		return { true, static_cast<uint8_t>(0xF0 | (bytes[1] & 0x0F)), bytes[1] >> 4, 2 };
+	return { false, 0, 0, 0 };
+}
+
+static std::vector<uint32_t> decodeC166Pair(uint32_t address, const uint8_t *bytes,
+	const Pattern::Memory &memory, size_t firstSize) {
+	if ((address & 1) != 0 || !Pattern::inMemory(memory, address, firstSize + 2))
+		return { };
+
+	size_t available = memory.base + memory.size - address;
+	auto [hasLow, lowReg, low, lowSize] = decodeC166Mov(bytes, available);
+	if (!hasLow || lowSize != firstSize || (lowReg & 1) != 0)
+		return { };
+
+	bool hasHigh;
+	uint8_t highReg;
+	uint32_t high;
+	std::tie(hasHigh, highReg, high, std::ignore) = decodeC166Mov(bytes + lowSize, available - lowSize);
+	if (!hasHigh || highReg != lowReg + 1)
+		return { };
+
+	std::vector<uint32_t> references;
+	// Huge/code pointer: 16-bit segment offset and 8-bit segment number.
+	if (high < 0x100)
+		references.push_back((high << 16) | low);
+	// Far data pointer: 14-bit page offset and 10-bit page number.
+	if (low < 0x4000 && high < 0x400) {
+		uint32_t target = (high << 14) | low;
+		if (references.empty() || references.front() != target)
+			references.push_back(target);
+	}
+	return references;
 }
 
 class ArmArch final: public Arch {
@@ -167,42 +249,45 @@ class ArmArch final: public Arch {
 
 		std::vector<uint32_t> decodeReferences2(uint32_t address, const uint8_t *bytes, const Pattern::Memory &memory) const override {
 			auto [isLdr, pointerAddress] = decodeThumbLDR(address, bytes);
-			if (!isLdr)
-				return { };
-			auto [success, pointer] = decodePointer(pointerAddress, memory);
-			return success ? std::vector<uint32_t>{ pointer } : std::vector<uint32_t>{ };
+			if (isLdr) {
+				auto [success, pointer] = decodePointer(pointerAddress, memory);
+				return success ? std::vector<uint32_t>{ pointer } : std::vector<uint32_t>{ };
+			}
+
+			auto [isAdr, target] = decodeThumbADR(address, bytes);
+			return isAdr ? std::vector<uint32_t>{ target } : std::vector<uint32_t>{ };
 		}
 
 		std::vector<uint32_t> decodeReferences4(uint32_t address, const uint8_t *bytes, const Pattern::Memory &memory) const override {
 			auto ldr = decodeArmLDR(address, bytes);
-			if (!std::get<0>(ldr))
-				return { };
-			auto [success, pointer] = decodePointer(std::get<1>(ldr), memory);
-			return success ? std::vector<uint32_t>{ pointer } : std::vector<uint32_t>{ };
+			if (std::get<0>(ldr)) {
+				auto [success, pointer] = decodePointer(std::get<1>(ldr), memory);
+				return success ? std::vector<uint32_t>{ pointer } : std::vector<uint32_t>{ };
+			}
+
+			auto [isAdr, target] = decodeArmADR(address, bytes);
+			return isAdr ? std::vector<uint32_t>{ target } : std::vector<uint32_t>{ };
 		}
 
 		std::tuple<bool, uint32_t, size_t> decodeReference(uint32_t offset, const Pattern::Memory &memory) const override {
-			offset &= ~1U;
-			if (offset + 2 > memory.size)
-				return { false, 0, 0 };
-
-			if (offset + 4 <= memory.size) {
-				auto references = decodeReferences4(memory.base + offset, memory.data + offset, memory);
-				if (!references.empty())
-					return { true, references.front(), 4 };
-			}
-
-			auto references = decodeReferences2(memory.base + offset, memory.data + offset, memory);
+			auto [references, size] = decodeReferences(offset, memory);
 			return references.empty() ?
-				std::make_tuple(false, 0U, 0U) :
-				std::make_tuple(true, references.front(), 2U);
+				std::make_tuple(false, 0U, size_t{ 0 }) :
+				std::make_tuple(true, references.front(), size);
 		}
 
 		std::tuple<bool, uint32_t, size_t> decodeBranchReference(uint32_t offset, const Pattern::Memory &memory) const override {
-			if (offset + 4 > memory.size)
+			if (offset + 2 > memory.size)
 				return { false, 0, 0 };
 
 			uint32_t address = memory.base + offset;
+			auto [isThumbB, thumbBAddress] = decodeThumbB(address, memory.data + offset);
+			if (isThumbB && Pattern::inMemory(memory, thumbBAddress, 2))
+				return { true, resolveThunks(thumbBAddress, memory) | 1U, 2 };
+
+			if (offset + 4 > memory.size)
+				return { false, 0, 0 };
+
 			auto [isThumb, thumbAddress, isThumbBLX] = decodeThumbBL(address, memory.data + offset);
 			if (isThumb && Pattern::inMemory(memory, thumbAddress, 4))
 				return { true, resolveThunks(thumbAddress, memory) | (!isThumbBLX ? 1U : 0U), 4 };
@@ -221,16 +306,17 @@ class ArmArch final: public Arch {
 			return { false, 0, 0 };
 		}
 
-		std::pair<bool, uint32_t> decodePointer(uint32_t address, const Pattern::Memory &memory) const override {
+		size_t decodePointers(uint32_t address, const Pattern::Memory &memory,
+			std::array<uint32_t, 2> &pointers) const override {
 			if (!Pattern::inMemory(memory, address, 4))
-				return { false, 0 };
+				return 0;
 
 			const uint8_t *bytes = memory.data + (address - memory.base);
-			uint32_t value = bytes[0] |
+			pointers[0] = bytes[0] |
 				(static_cast<uint32_t>(bytes[1]) << 8) |
 				(static_cast<uint32_t>(bytes[2]) << 16) |
 				(static_cast<uint32_t>(bytes[3]) << 24);
-			return { true, value };
+			return 1;
 		}
 
 		uint32_t resolveThunks(uint32_t address, const Pattern::Memory &memory) const override {
@@ -259,6 +345,10 @@ class ArmArch final: public Arch {
 					return address | 1;
 			}
 			return address;
+		}
+
+		bool sameAddress(uint32_t first, uint32_t second) const override {
+			return (first & ~1U) == (second & ~1U);
 		}
 
 		int reference4Align() const override {
@@ -320,36 +410,13 @@ class C166Arch final: public Arch {
 			return { true, target };
 		}
 
-		std::vector<uint32_t> decodeReferences2(uint32_t, const uint8_t *, const Pattern::Memory &) const override {
-			return { };
+		std::vector<uint32_t> decodeReferences2(uint32_t address, const uint8_t *bytes, const Pattern::Memory &memory) const override {
+			return decodeC166Pair(address, bytes, memory, 2);
 		}
 
 		std::vector<uint32_t> decodeReferences4(uint32_t address, const uint8_t *bytes, const Pattern::Memory &memory) const override {
-			if ((address & 1) != 0 || !Pattern::inMemory(memory, address, 8))
-				return { };
-
 			// TASKING large model: MOV Rn, #POF/SOF(target); MOV Rn+1, #PAG/SEG(target).
-			uint8_t reg = bytes[1];
-			if (bytes[0] != 0xE6 || reg < 0xF0 || reg >= 0xFF || (reg & 1) != 0 ||
-				bytes[4] != 0xE6 || bytes[5] != reg + 1)
-				return { };
-
-			uint32_t low = bytes[2] | (static_cast<uint32_t>(bytes[3]) << 8);
-			uint32_t high = bytes[6] | (static_cast<uint32_t>(bytes[7]) << 8);
-			std::vector<uint32_t> references;
-
-			// Huge/code pointer: 16-bit segment offset and 8-bit segment number.
-			if (high < 0x100)
-				references.push_back((high << 16) | low);
-
-			// Far data pointer: 14-bit page offset and 10-bit page number.
-			if (low < 0x4000 && high < 0x400) {
-				uint32_t target = (high << 14) | low;
-				if (references.empty() || references.front() != target)
-					references.push_back(target);
-			}
-
-			return references;
+			return decodeC166Pair(address, bytes, memory, 4);
 		}
 
 		std::tuple<bool, uint32_t, size_t> decodeReference(uint32_t, const Pattern::Memory &) const override {
@@ -374,14 +441,24 @@ class C166Arch final: public Arch {
 			return { false, 0, 0 };
 		}
 
-		std::pair<bool, uint32_t> decodePointer(uint32_t address, const Pattern::Memory &memory) const override {
+		size_t decodePointers(uint32_t address, const Pattern::Memory &memory,
+			std::array<uint32_t, 2> &pointers) const override {
 			if (!Pattern::inMemory(memory, address, 4))
-				return { false, 0 };
+				return 0;
 
 			const uint8_t *bytes = memory.data + (address - memory.base);
 			uint32_t segmentOffset = bytes[0] | (static_cast<uint32_t>(bytes[1]) << 8);
 			uint32_t segment = bytes[2];
-			return { true, (segment << 16) | segmentOffset };
+			pointers[0] = (segment << 16) | segmentOffset;
+			size_t count = 1;
+
+			uint32_t page = bytes[2] | (static_cast<uint32_t>(bytes[3]) << 8);
+			if (segmentOffset < 0x4000 && page < 0x400) {
+				uint32_t pointer = (page << 14) | segmentOffset;
+				if (pointers[0] != pointer)
+					pointers[count++] = pointer;
+			}
+			return count;
 		}
 
 		uint32_t resolveThunks(uint32_t address, const Pattern::Memory &memory) const override {
@@ -410,12 +487,39 @@ class C166Arch final: public Arch {
 			return address;
 		}
 
+		bool sameAddress(uint32_t first, uint32_t second) const override {
+			return first == second;
+		}
+
 		int reference4Align() const override {
 			return 2;
 		}
 };
 
 }; // namespace
+
+std::pair<std::vector<uint32_t>, size_t> Arch::decodeReferences(uint32_t offset, const Pattern::Memory &memory) const {
+	if (offset + 4 <= memory.size) {
+		auto references = decodeReferences4(memory.base + offset, memory.data + offset, memory);
+		if (!references.empty())
+			return { references, 4 };
+	}
+
+	if (offset + 2 <= memory.size) {
+		auto references = decodeReferences2(memory.base + offset, memory.data + offset, memory);
+		if (!references.empty())
+			return { references, 2 };
+	}
+	return { { }, 0 };
+}
+
+std::pair<bool, uint32_t> Arch::decodePointer(uint32_t address, const Pattern::Memory &memory) const {
+	std::array<uint32_t, 2> pointers;
+	size_t count = decodePointers(address, memory, pointers);
+	return count == 0 ?
+		std::make_pair(false, 0U) :
+		std::make_pair(true, pointers[0]);
+}
 
 const Arch &getArch(Architecture architecture) {
 	static const ArmArch arm;
