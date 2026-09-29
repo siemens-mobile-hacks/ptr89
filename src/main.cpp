@@ -1,4 +1,5 @@
 #include "main.h"
+#include "PatternsLibrary.h"
 #include "src/Pattern.h"
 #include <cstddef>
 #include <cstdint>
@@ -149,7 +150,7 @@ int main(int argc, char *argv[]) {
 	spdlog::set_pattern("%v");
 	spdlog::set_level(spdlog::level::warn);
 
-	argparse::ArgumentParser program("ptr89", "3.0.3");
+	argparse::ArgumentParser program("ptr89", "3.1.0");
 
 	program.add_argument("-f", "--file")
 		.required()
@@ -176,7 +177,10 @@ int main(int argc, char *argv[]) {
 		.default_value(100)
 		.nargs(1)
 		.scan<'i', int>();
-	program.add_argument("--from-ini")
+	program.add_argument("--swilib-patterns")
+		.default_value("")
+		.nargs(1);
+	program.add_argument("--swilib-platform")
 		.default_value("")
 		.nargs(1);
 	program.add_argument("--prettify")
@@ -220,8 +224,9 @@ int main(int argc, char *argv[]) {
 		std::cerr << "  -x, --xref HEX           address to search\n";
 		std::cerr << "  -n, --limit NUMBER       limit results count [default 100]\n";
 		std::cerr << "\n";
-		std::cerr << "Find patterns from functions.ini:\n";
-		std::cerr << "  --from-ini FILE          path to functions.ini\n";
+		std::cerr << "Find patterns from patterns.toml:\n";
+		std::cerr << "  --swilib-patterns FILE   path to patterns.toml\n";
+		std::cerr << "  --swilib-platform NAME   target platform\n";
 		std::cerr << "\n";
 		std::cerr << "Prettify pattern:\n";
 		std::cerr << "  --prettify STRING        pattern\n";
@@ -323,20 +328,31 @@ int main(int argc, char *argv[]) {
 			if (!asJSON) {
 				std::cout << std::format("Search done in {} ms\n", end - start);
 			}
-		} else if (program.is_used("--from-ini")) {
-			auto patternsLib = parsePatternsIni(program.get<std::string>("--from-ini"));
+		} else if (program.is_used("--swilib-patterns")) {
+			auto platform = program.get<std::string>("--swilib-platform");
+			if (platform.empty())
+				throw std::runtime_error("--swilib-platform is required with --swilib-patterns.");
+			auto patternsLib = parsePatternsToml(program.get<std::string>("--swilib-patterns"), platform);
 
 			j["functions"] = json::array();
 
 			for (auto &entry: patternsLib) {
-				auto pattern = Pattern::parse(entry.pattern);
-				auto results = Pattern::find(pattern, memoryRegion, 1);
+				std::string patternStr;
+				auto pattern = Pattern::parse(patternStr);
+				std::vector<Pattern::SearchResult> results;
+				for (const auto &candidate: entry.patterns) {
+					patternStr = candidate;
+					pattern = Pattern::parse(patternStr);
+					results = Pattern::find(pattern, memoryRegion, 1);
+					if (!results.empty())
+						break;
+				}
 
 				if (asJSON) {
 					json functionJson = {
 						{ "id", entry.id },
 						{ "name", entry.funcName },
-						{ "pattern", entry.pattern },
+						{ "pattern", patternStr },
 						{ "type", Pattern::getSearchTypeName(pattern->type) },
 					};
 					functionJson["result"] = results.empty() || results[0].address == 0xFFFFFFFF ?
@@ -381,40 +397,6 @@ int main(int argc, char *argv[]) {
 	return 0;
 }
 
-std::vector<PatternsLibraryItem> parsePatternsIni(const std::string &iniFile) {
-	auto iniText = readFile(iniFile);
-	std::regex exp(R"(^[ \t]*([0-9a-f]+):[ \t]*([^=;\n]+)(?:[ \t]*=[ \t]*([^;:\n]*))?)", std::regex::icase | std::regex::multiline);
-	std::smatch m;
-	std::vector<PatternsLibraryItem> results;
-	auto searchStart = iniText.cbegin();
-	while (std::regex_search(searchStart, iniText.cend(), m, exp)) {
-		auto id = stoi(m[1].str(), NULL, 16);
-		auto funcName = trim(m[2].str());
-		auto patternStr = trim(m[3].str());
-		results.push_back({ id, funcName, patternStr });
-		searchStart = m.suffix().first;
-	}
-	return results;
-}
-
-std::string readFile(const std::string &path) {
-	FILE *fp = fopen(path.c_str(), "r");
-	if (!fp) {
-		throw std::runtime_error("fopen(" + path + ") error: " + strerror(errno));
-	}
-
-	char buff[4096];
-	std::string result;
-	while (!feof(fp)) {
-		int readed = fread(buff, 1, sizeof(buff), fp);
-		if (readed > 0)
-			result.append(buff, readed);
-	}
-	fclose(fp);
-
-	return result;
-}
-
 std::pair<uint8_t *, size_t> readBinaryFile(const std::string &path) {
 	FILE *fp = fopen(path.c_str(), "r");
 	if (!fp) {
@@ -436,14 +418,4 @@ std::pair<uint8_t *, size_t> readBinaryFile(const std::string &path) {
 	fclose(fp);
 
 	return { bytes, readed };
-}
-
-std::string trim(std::string s) {
-	s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](uint8_t c) {
-		return !isspace(c);
-	}));
-	s.erase(std::find_if(s.rbegin(), s.rend(), [](uint8_t c) {
-		return !isspace(c);
-	}).base(), s.end());
-	return s;
 }

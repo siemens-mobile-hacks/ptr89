@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.16)
 
 project(ptr89)
 set(CMAKE_CXX_STANDARD 20)
@@ -65,9 +65,11 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
 		set_tests_properties(wasm-test PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 	endif()
 else()
-	add_executable(ptr89 src/main.cpp)
-	target_link_libraries(ptr89 PRIVATE ptr89-lib)
-	target_precompile_headers(ptr89 PRIVATE <argparse/argparse.hpp> <nlohmann/json.hpp> <string> <vector> <memory> <regex> <map> <tuple> <stdexcept>)
+	add_subdirectory(third_party/tomlplusplus EXCLUDE_FROM_ALL)
+
+	add_executable(ptr89 src/main.cpp src/PatternsLibrary.cpp)
+	target_link_libraries(ptr89 PRIVATE ptr89-lib tomlplusplus::tomlplusplus)
+	target_precompile_headers(ptr89 PRIVATE <argparse/argparse.hpp> <nlohmann/json.hpp> <string> <vector> <memory> <map> <tuple> <stdexcept>)
 	install(TARGETS ptr89)
 
 	if (MSVC)
@@ -87,8 +89,17 @@ else()
 
 	if (BUILD_TESTS)
 		enable_testing()
-		add_executable(ptr89-tests src/tests.cpp)
-		target_link_libraries(ptr89-tests PRIVATE ptr89-lib)
+		add_subdirectory(third_party/Catch2 EXCLUDE_FROM_ALL)
+		add_executable(ptr89-tests src/tests.cpp src/PatternsLibrary.cpp)
+		target_compile_definitions(ptr89-tests PRIVATE TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test")
+		target_link_libraries(ptr89-tests PRIVATE ptr89-lib tomlplusplus::tomlplusplus Catch2::Catch2WithMain)
 		add_test(NAME test COMMAND ptr89-tests)
+		add_test(NAME toml-cli COMMAND ptr89
+			-f ${CMAKE_CURRENT_SOURCE_DIR}/test/patterns.toml
+			--swilib-patterns ${CMAKE_CURRENT_SOURCE_DIR}/test/patterns.toml
+			--swilib-platform ELKA
+			--json
+		)
+		set_tests_properties(toml-cli PROPERTIES PASS_REGULAR_EXPRESSION "\"pattern\": \"6C 61\"")
 	endif()
 endif()

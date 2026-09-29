@@ -1,0 +1,24 @@
+[platforms]
+ALL = ["NSG", "ELKA", "SG", "X75", "BROKEN"]
+NSG = ["NSG", "ELKA"]
+SG = ["SG", "X75"]
+
+[003]
+decl = "Unsupported"
+SG = "30 B5"
+
+[000]
+decl = "Common"
+decl_BROKEN = 42
+ALL = "5B 70"
+
+[002]
+decl = "Disabled override"
+ALL = "30 B5"
+ELKA = false
+
+[001]
+decl = "Default declaration"
+decl_ELKA = "ELKA override"
+NSG = ["00 00", "6C 61"]
+SG = "20 B5"

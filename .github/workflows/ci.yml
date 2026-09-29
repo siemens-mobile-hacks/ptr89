@@ -3,6 +3,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release tag
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -39,14 +44,11 @@ jobs:
       - run: cmake --build build-wasm
       - run: pnpm run build
       - run: pnpm test
-      - if: github.event_name == 'release'
-        run: pnpm run prepack
-      - if: github.event_name == 'release'
-        run: npm publish ./build-npm --access public
 
       - uses: softprops/action-gh-release@v1
         with:
           token: "${{ secrets.GITHUB_TOKEN }}"
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
           files: |
             ../*.deb
             build/*.tar.gz
@@ -60,8 +62,10 @@ jobs:
           token: ${{ secrets.TAP_GITHUB_TOKEN }}
 
       - name: Generate formula
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
-          sed -i "s/RELEASE_TAG_NAME/$GITHUB_REF_NAME/g" ptr89.rb
+          sed -i "s/RELEASE_TAG_NAME/$RELEASE_TAG/g" ptr89.rb
           sed -i "s/RELEASE_TAG_HASH/$GITHUB_SHA/g" ptr89.rb
           cat ptr89.rb
 

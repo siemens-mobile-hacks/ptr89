@@ -62,8 +62,9 @@ Find xrefs:
   -x, --xref HEX           address to search
   -n, --limit NUMBER       limit results count [default 100]
 
-Find patterns from functions.ini:
-  --from-ini FILE          path to functions.ini
+Find patterns from patterns.toml:
+  --swilib-patterns FILE   path to patterns.toml
+  --swilib-platform NAME   target platform
 
 Prettify pattern:
   --prettify STRING        pattern
@@ -167,12 +168,13 @@ x-ref results intentionally use different structures:
 }
 ```
 
-For a fixed address, `offset` and `bytes` are omitted. `--from-ini` returns a
-`functions` array with one `result` object or `null` for each entry.
+For a fixed address, `offset` and `bytes` are omitted. `--swilib-patterns`
+returns a `functions` array with one `result` object or `null` for each entry.
+The TOML format selects platform-specific patterns, including groups and
+fallback arrays defined by its `[platforms]` table:
 
-### Convert patterns.ini to swilib.vkp
 ```
-ptr89 -f EL71v45.bin --from-ini ELKA.ini > swilib.vkp
+ptr89 -f EL71v45.bin --swilib-patterns patterns.toml --swilib-platform ELKA > swilib.vkp
 ```
 
 # Pattern syntax
@@ -493,7 +495,7 @@ Steps:
 2. Result is: `0xA058BB98 | 1 = 0xA058BB99`
 
 ## Fixed address
-Usually used in `patterns.ini` for entries whose address is already known.
+Usually used in `patterns.toml` for entries whose address is already known.
 ```bash
 # Address is 0xA8000000
 < A8000000 >
