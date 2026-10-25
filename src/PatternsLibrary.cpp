@@ -45,16 +45,16 @@ static std::vector<PlatformGroup> parsePlatformGroups(const toml::table &root, c
 	return groups;
 }
 
-static const toml::node *findPatternNode(const toml::table &entry, const std::string &platform,
-	const std::vector<PlatformGroup> &groups) {
-	if (auto value = entry.get(platform))
+static const toml::node *findPlatformNode(const toml::table &entry, const std::string &prefix,
+	const std::string &platform, const std::vector<PlatformGroup> &groups) {
+	if (auto value = entry.get(prefix + platform))
 		return value;
 
 	for (const auto &group: groups) {
 		if (group.name == platform)
 			continue;
 		if (std::find(group.platforms.begin(), group.platforms.end(), platform) != group.platforms.end()) {
-			if (auto value = entry.get(group.name))
+			if (auto value = entry.get(prefix + group.name))
 				return value;
 		}
 	}
@@ -103,15 +103,14 @@ std::vector<PatternsLibraryItem> parsePatternsToml(const std::string &tomlFile, 
 		if (!entry)
 			throw std::runtime_error(std::format("{} must be a table.", name.str()));
 
-		auto declName = std::format("decl_{}", platform);
-		auto declNode = entry->get(declName);
+		auto declNode = findPlatformNode(*entry, "decl_", platform, groups);
 		if (!declNode)
 			declNode = entry->get("decl");
 		auto funcName = declNode ? declNode->value<std::string>() : std::optional<std::string>{ };
 		if (!funcName)
 			throw std::runtime_error(std::format("Declaration for [{}] must be a string.", name.str()));
 
-		auto patternNode = findPatternNode(*entry, platform, groups);
+		auto patternNode = findPlatformNode(*entry, "", platform, groups);
 		results.push_back({ parseId(name.str()), *funcName, parsePatterns(patternNode, std::string(name.str())) });
 	}
 

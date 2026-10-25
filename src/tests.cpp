@@ -347,11 +347,12 @@ TEST_CASE("TOML patterns library", "[patterns-library][toml]") {
 	REQUIRE((elka[1].id == 1 && elka[1].funcName == "ELKA override" &&
 		elka[1].patterns == std::vector<std::string>({ "00 00", "6C 61" })));
 	REQUIRE((elka[2].id == 2 && elka[2].patterns.empty()));
-	REQUIRE((elka[3].id == 3 && elka[3].patterns.empty()));
+	REQUIRE((elka[3].id == 3 && elka[3].funcName == "Unsupported" && elka[3].patterns.empty()));
 
 	auto x75 = parsePatternsToml(TEST_DATA_DIR "/patterns.toml", "X75");
 	REQUIRE((x75[1].funcName == "Default declaration" && x75[1].patterns == std::vector<std::string>{ "20 B5" }));
 	REQUIRE((x75[2].patterns == std::vector<std::string>{ "30 B5" }));
+	REQUIRE((x75[3].funcName == "SG declaration" && x75[3].patterns == std::vector<std::string>{ "30 B5" }));
 	REQUIRE_THROWS_WITH(parsePatternsToml(TEST_DATA_DIR "/patterns.toml", "UNKNOWN"), "Unknown platform 'UNKNOWN'.");
 	REQUIRE_THROWS_WITH(parsePatternsToml(TEST_DATA_DIR "/patterns.toml", "BROKEN"),
 		"Declaration for [000] must be a string.");
