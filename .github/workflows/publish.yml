@@ -69,7 +69,7 @@ jobs:
         if: steps.state.outputs.needs_publish == 'true'
         run: |
           emcmake cmake -B build-wasm -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS:BOOL=TRUE
-          cmake --build build-wasm -- -j"$(nproc)"
+          pnpm exec cmake --build build-wasm -- -j"$(nproc)"
 
       - name: Build
         if: steps.state.outputs.needs_publish == 'true'

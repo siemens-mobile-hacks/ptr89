@@ -41,7 +41,7 @@ jobs:
       - run: corepack enable pnpm
       - run: pnpm install --frozen-lockfile
       - run: emcmake cmake -B build-wasm -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS:BOOL=TRUE
-      - run: cmake --build build-wasm
+      - run: pnpm exec cmake --build build-wasm
       - run: pnpm run build
       - run: pnpm test
 
