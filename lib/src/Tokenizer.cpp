@@ -155,6 +155,20 @@ Tokenizer::Token Tokenizer::parseToken() {
 		return { (isMask ? TOK_MASK : TOK_HEX), start, m_offset };
 	}
 
+	if (m_input[m_offset] == '"') {
+		m_offset++;
+		while (avail() > 0) {
+			if (m_input[m_offset] == '"') {
+				m_offset++;
+				return { TOK_STRING, start, m_offset };
+			}
+			if (m_input[m_offset] == '\\' && avail() > 1)
+				m_offset++;
+			m_offset++;
+		}
+		return { TOK_INVALID, start, m_offset };
+	}
+
 	if (m_input[m_offset] == '%') {
 		m_offset++;
 		while (avail() > 0) {
@@ -195,6 +209,7 @@ std::string Tokenizer::getTokenName(TokenType type) {
 		case TOK_MASK:				return "MASK";
 		case TOK_BIN:				return "BIN";
 		case TOK_NAMED_BRANCH:		return "NAMED_BRANCH";
+		case TOK_STRING:			return "STRING";
 	}
 	return "UNKNOWN";
 }

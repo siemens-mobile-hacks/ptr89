@@ -185,6 +185,7 @@ describe("Ptr89 WASM", () => {
 		await expect(prettify("&BL(00bf) ")).resolves.toBe("&BL(00 BF)");
 		await expect(prettify("<123456>")).resolves.toBe("< 00123456 >");
 		await expect(prettify("LDR[ 00bf ] cc")).resolves.toBe("LDR[ 00 BF ] CC");
+		await expect(prettify('"+D\\"" 00')).resolves.toBe("2B 44 22 00");
 		await expect(prettify("GG")).rejects.toThrow("Syntax error");
 	});
 });

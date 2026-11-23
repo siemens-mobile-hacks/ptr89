@@ -169,6 +169,62 @@ void Parser::parseBinMask() {
 	m_tok.next();
 }
 
+void Parser::parseString() {
+	auto value = getTokenStr(m_tok.peek());
+	size_t end = value.size() - 1;
+	if (end == 1)
+		throw PatternError(this, "Empty string");
+
+	for (size_t i = 1; i < end; i++) {
+		uint8_t byte = value[i];
+		if (byte == '\\') {
+			i++;
+			byte = value[i];
+			switch (byte) {
+				case 'a':	byte = '\a'; break;
+				case 'b':	byte = '\b'; break;
+				case 'e':	byte = 0x1B; break;
+				case 'f':	byte = '\f'; break;
+				case 'n':	byte = '\n'; break;
+				case 'r':	byte = '\r'; break;
+				case 't':	byte = '\t'; break;
+				case 'v':	byte = '\v'; break;
+				case '"':
+				case '\'':
+				case '\\':
+				break;
+				case 'x':
+				{
+					int hi = hex2byte(value[i + 1]);
+					int lo = i + 2 < end ? hex2byte(value[i + 2]) : -1;
+					if (hi < 0 || lo < 0)
+						throw PatternError(this, "Invalid \\x escape sequence in string");
+					byte = (hi << 4) | lo;
+					i += 2;
+				}
+				break;
+				default:
+				{
+					if (byte < '0' || byte > '7')
+						throw PatternError(this, "Invalid escape sequence in string");
+					int octal = byte - '0';
+					for (int digits = 1; digits < 3 && value[i + 1] >= '0' && value[i + 1] <= '7'; digits++) {
+						i++;
+						octal = (octal << 3) | (value[i] - '0');
+					}
+					if (octal > 0xFF)
+						throw PatternError(this, "Octal escape sequence is out of range");
+					byte = octal;
+				}
+				break;
+			}
+		}
+		m_pattern.bytes.push_back(byte);
+		m_pattern.masks.push_back(0xFF);
+	}
+	m_tok.next();
+}
+
 void Parser::parseSubPattern(SubPatternType type, Tokenizer::TokenType openTag, Tokenizer::TokenType closeTag) {
 	PtrExp mainPattern = m_pattern;
 
@@ -219,6 +275,10 @@ bool Parser::parsePatternData() {
 
 		case Tokenizer::TOK_BIN:
 			parseBinMask();
+		break;
+
+		case Tokenizer::TOK_STRING:
+			parseString();
 		break;
 
 		case Tokenizer::TOK_2B_BRANCH_OPEN:	// [ ... ]

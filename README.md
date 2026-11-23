@@ -199,6 +199,20 @@ B5
 [1111....]
 ```
 
+## Strings
+A quoted string matches its bytes exactly.
+It supports the C escape sequences `\a`, `\b`, `\e`, `\f`, `\n`, `\r`, `\t`, `\v`, `\\`, `\'`, `\"`, `\xHH` and octal `\0`..`\377`.
+```bash
+# 53 49 45 4D 45 4E 53 00
+"SIEMENS" 00
+
+# 2B 44 44 4C 49 3A 22 ?? ?? ?? ?? ?? 22
+"+DDLI:\"" ?? ?? ?? ?? ?? 22
+
+# 4F 4B 0D 0A 00 FF
+"OK\r\n\0\xFF"
+```
+
 ## Pattern separators
 You can use spaces or commas to separate different bytes or groups.
 

@@ -31,6 +31,7 @@ class Tokenizer {
 			TOK_MASK,
 			TOK_BIN,
 			TOK_NAMED_BRANCH,
+			TOK_STRING,
 		};
 
 		struct Token {

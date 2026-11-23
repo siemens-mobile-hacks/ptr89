@@ -340,6 +340,27 @@ TEST_CASE("THUMB patterns", "[pattern][thumb]") {
 		adjustedResults[0].offset == 2 && adjustedResults[0].size == 2));
 }
 
+TEST_CASE("String patterns", "[pattern][string]") {
+	auto pattern = Pattern::parse("\"A\\\"B\\\\\" 00 ??");
+	REQUIRE((pattern->bytes == std::vector<uint8_t>({ 'A', '"', 'B', '\\', 0x00, 0x00 })));
+	REQUIRE((pattern->masks == std::vector<uint8_t>({ 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00 })));
+
+	uint8_t bytes[] = { 0xFF, '+', 'D', 'D', 'L', 'I', ':', '"', 'K', 'E', '9', '7', '0', '"' };
+	Pattern::Memory memory = { 0xA0000000, bytes, sizeof(bytes), 1, ARCH_ARM };
+	auto results = Pattern::find(Pattern::parse("\"+DDLI:\\\"\" ?? ?? ?? ?? ?? 22"), memory, 1);
+	REQUIRE((results.size() == 1 && results[0].offset == 1 && results[0].size == 13));
+
+	auto escapes = Pattern::parse(R"("\a\b\e\f\n\r\t\v\'\0\101\x7f\xFF")");
+	REQUIRE((escapes->bytes == std::vector<uint8_t>({ 0x07, 0x08, 0x1B, 0x0C, 0x0A, 0x0D, 0x09, 0x0B, '\'', 0x00, 'A', 0x7F, 0xFF })));
+
+	REQUIRE_THROWS_AS(Pattern::parse("\"ABC"), PatternError);
+	REQUIRE_THROWS_AS(Pattern::parse("\"\""), PatternError);
+	REQUIRE_THROWS_AS(Pattern::parse(R"("\x")"), PatternError);
+	REQUIRE_THROWS_AS(Pattern::parse(R"("\q")"), PatternError);
+	REQUIRE_THROWS_AS(Pattern::parse(R"("\x4")"), PatternError);
+	REQUIRE_THROWS_AS(Pattern::parse(R"("\400")"), PatternError);
+}
+
 TEST_CASE("TOML patterns library", "[patterns-library][toml]") {
 	auto elka = parsePatternsToml(TEST_DATA_DIR "/patterns.toml", "ELKA");
 	REQUIRE((elka.size() == 4));

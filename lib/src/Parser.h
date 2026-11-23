@@ -18,6 +18,7 @@ class Parser {
 		void parseSubPattern(SubPatternType type, Tokenizer::TokenType openTag, Tokenizer::TokenType closeTag);
 		void parseHexMask();
 		void parseBinMask();
+		void parseString();
 		bool parsePatternData();
 		void parsePatternBody();
 		void parseFixedAddress();
