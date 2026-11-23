@@ -1,6 +1,7 @@
 #include "utils.h"
 
 #include <cstddef>
+#include <cstdlib>
 #include <cstring>
 
 namespace Ptr89 {
@@ -26,7 +27,7 @@ std::string codeFrame(const std::string &text, int lineNum, int colNum) {
 	std::string out = "";
 	int n = 1;
 	for (auto &line: lines) {
-		if (abs(n - lineNum) > 3) {
+		if (std::abs(n - lineNum) > 3) {
 			n++;
 			continue;
 		}
